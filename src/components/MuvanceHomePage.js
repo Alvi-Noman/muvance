@@ -1,23 +1,54 @@
 import React, { useEffect, useState } from "react";
 
 const MuvanceHomePage = () => {
-  const [rocketPosition, setRocketPosition] = useState(-30); // Start below the screen (adjust percentage as needed)
-  const [isInMiddle, setIsInMiddle] = useState(false); // Track if the rocket is in the middle
+  const [rocketPosition, setRocketPosition] = useState(-30); // Start below the screen
+  const [imageIndex, setImageIndex] = useState(0); // Track the image sequence
+  const [rocketImage, setRocketImage] = useState("/rocket.png"); // Default rocket image
+  const [isInMiddle, setIsInMiddle] = useState(false); // Flag to check if the rocket is in the middle
+  const [scrollCount, setScrollCount] = useState(0); // Count the number of scroll events
 
-  // Handle mouse wheel event
+  const imageSequenceDown = ["/rocket3.png", "/rocket4.png", "/rocket5.png", "/rocket6.png"];
+  const imageSequenceUp = ["/rocket6.png", "/rocket5.png", "/rocket4.png", "/rocket3.png", "/rocket2.png"];
+
   const handleWheel = (event) => {
     if (event.deltaY > 0) {
       // Scrolling down
-      if (!isInMiddle) {
+      if (rocketPosition === -30) {
         setRocketPosition(20); // Move rocket to the middle
-        setIsInMiddle(true);
+        setRocketImage("/rocket.png"); // Reset to original image
+      } else if (isInMiddle && imageIndex < imageSequenceDown.length) {
+        setScrollCount(prevCount => prevCount + 1); // Increment scroll count
+        if (scrollCount >= 4) { // Change image every 4 scrolls
+          setRocketImage(imageSequenceDown[imageIndex]); // Change image
+          setImageIndex(imageIndex + 1); // Increment image index for next image
+          setScrollCount(0); // Reset scroll count after 4 scrolls
+        }
       }
     } else {
       // Scrolling up
-      if (isInMiddle) {
+      if (rocketImage === "/rocket.png") {
         setRocketPosition(-30); // Move rocket back to the initial position
-        setIsInMiddle(false);
+      } else if (isInMiddle && imageIndex > 0) {
+        setScrollCount(prevCount => prevCount + 1); // Increment scroll count
+        if (scrollCount >= 4) { // Change image every 4 scrolls
+          setRocketImage(imageSequenceUp[imageIndex - 1]); // Change image in reverse sequence
+          setImageIndex(imageIndex - 1); // Decrement image index for previous image
+          setScrollCount(0); // Reset scroll count after 4 scrolls
+        }
+        if (imageIndex === 1) {
+          setRocketImage("/rocket.png"); // Reset to the original rocket image when reaching rocket2.png
+          setImageIndex(0); // Reset the image index
+        }
       }
+      // Don't move the rocket position when scrolling up from the middle
+    }
+  };
+
+  const handleTransitionEnd = () => {
+    if (rocketPosition === 20) {
+      setIsInMiddle(true); // Set the middle flag when the rocket reaches the middle
+    } else if (rocketPosition === -30) {
+      setRocketImage("/rocket.png"); // Reset image when rocket is back at the start
     }
   };
 
@@ -29,7 +60,7 @@ const MuvanceHomePage = () => {
     return () => {
       window.removeEventListener("wheel", handleWheel);
     };
-  }, [isInMiddle]);
+  }, [rocketPosition, isInMiddle, imageIndex, scrollCount]); // Include scrollCount in the dependency array
 
   return (
     <div
@@ -51,7 +82,7 @@ const MuvanceHomePage = () => {
     >
       {/* Image as a topmost layer */}
       <img
-        src="/rocket.png" // Replace with your actual image URL
+        src={rocketImage} // Dynamically change the rocket image based on state
         alt="Rocket Image"
         style={{
           position: "absolute",
@@ -64,6 +95,7 @@ const MuvanceHomePage = () => {
           zIndex: 2,
           transition: "bottom 1s ease", // Smooth transition for the bottom position
         }}
+        onTransitionEnd={handleTransitionEnd} // Trigger handleTransitionEnd once animation is finished
       />
 
       {/* Top Section */}
