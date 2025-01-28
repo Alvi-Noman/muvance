@@ -1,53 +1,84 @@
-import React from "react";
+import React, { useEffect } from "react";
 
-const LandingSection = () => {
+const LandingSection = ({ goBack }) => {
+  const handleWheel = (event) => {
+    if (event.deltaY < 0) {
+      goBack(); // Trigger goBack when scrolling up
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener("wheel", handleWheel);
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
+
   return (
-    <div className="bg-white flex flex-col items-center justify-center min-h-screen p-6 space-y-6">
+    <div className="flex flex-col items-center justify-center text-center py-16 px-8 bg-white relative">
       {/* Logo */}
-      <div className="mb-4">
-        <img
-          src="/logo.svg" // Replace with your logo path
-          alt="Muvance Logo"
-          className="w-32"
-        />
+      <div className="w-full max-w-4xl flex justify-start">
+        <h1 className="text-2xl font-black tracking-wide">MUVANCE</h1>
       </div>
 
       {/* Heading */}
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-black leading-tight">
-          ADVANCING BRANDS BEYOND LIMITS
-        </h1>
-        <h2 className="text-4xl font-bold text-black">LEAVING LEGACY</h2>
-      </div>
+      <h1 className="text-5xl font-black mt-6 leading-tight">
+        ADVANCING BRANDS BEYOND LIMITS
+        <br /> LEAVING LEGACY
+      </h1>
 
       {/* Subheading */}
-      <p className="text-gray-500 text-lg text-center max-w-2xl">
+      <p className="text-lg font-semibold text-gray-500 max-w-2xl mt-4">
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
         veniam, quis nostrud.
       </p>
 
-      {/* Partner Logos */}
-      <div className="flex flex-wrap justify-center gap-6 w-full max-w-6xl py-4">
+      {/* Logo Row */}
+      <div className="flex flex-wrap justify-center gap-4 mt-8 w-full max-w-5xl">
         {[
-          "amazon", "binance", "asus", "archlinux", "etc organic", "la mano", "blacks",
-        ].map((brand, index) => (
+          "la mano",
+          "amazon",
+          "BINANCE",
+          "etc organic",
+          "ASUS",
+          "Blacks",
+          "archlinux",
+        ].map((logo, index) => (
           <div
             key={index}
-            className="bg-gray-200 rounded-xl flex items-center justify-center px-8 py-4 h-20 w-40"
+            className="bg-gray-200 rounded-2xl px-6 py-3 flex items-center justify-center text-gray-400 font-semibold text-lg w-36 h-16"
           >
-            <img
-              src={`/brands/${brand}.svg`}
-              alt={brand}
-              className="h-10 grayscale opacity-60 hover:opacity-100 transition"
-            />
+            {logo}
           </div>
         ))}
       </div>
 
       {/* Button */}
       <button
-        className="px-6 py-3 text-sm font-medium text-black bg-white border border-black rounded-full hover:bg-black hover:text-white transition"
+        style={{
+          backgroundColor: "white",
+          color: "black",
+          border: "2px solid black",
+          padding: "0.75rem 2rem",
+          fontSize: "1rem",
+          borderRadius: "2rem",
+          cursor: "pointer",
+          fontWeight: "bold",
+          transition: "all 0.3s ease",
+          position: "absolute",
+          bottom: "3rem",
+          right: "3rem",
+          zIndex: 1,
+        }}
+        onMouseOver={(e) => {
+          e.target.style.backgroundColor = "black";
+          e.target.style.color = "white";
+        }}
+        onMouseOut={(e) => {
+          e.target.style.backgroundColor = "white";
+          e.target.style.color = "black";
+        }}
       >
         Get in Touch
       </button>

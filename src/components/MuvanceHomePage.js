@@ -2,24 +2,26 @@ import React, { useEffect, useState } from "react";
 import LandingSection from "./LandingSection";
 
 const MuvanceHomePage = () => {
-  const [rocketPosition, setRocketPosition] = useState(-30); // Start below the screen
-  const [imageIndex, setImageIndex] = useState(0); // Track the image sequence
-  const [rocketImage, setRocketImage] = useState("/rocket.png"); // Default rocket image
-  const [isInMiddle, setIsInMiddle] = useState(false); // Flag to check if the rocket is in the middle
-  const [scrollCount, setScrollCount] = useState(0); // Count the number of scroll events
-  const [currentPage, setCurrentPage] = useState(1); // Track current page (1 or 2)
+  const [rocketPosition, setRocketPosition] = useState(-30);
+  const [imageIndex, setImageIndex] = useState(0);
+  const [rocketImage, setRocketImage] = useState("/rocket.png");
+  const [isInMiddle, setIsInMiddle] = useState(false);
+  const [scrollCount, setScrollCount] = useState(0);
+  const [showLanding, setShowLanding] = useState(false);
 
   const imageSequenceDown = ["/rocket3.png", "/rocket4.png", "/rocket5.png", "/rocket6.png"];
   const imageSequenceUp = ["/rocket6.png", "/rocket5.png", "/rocket4.png", "/rocket3.png", "/rocket2.png"];
 
   const handleWheel = (event) => {
+    if (showLanding) return; // Prevent interaction when LandingSection is active
+
     if (event.deltaY > 0) {
       // Scrolling down
       if (rocketPosition === -30) {
-        setRocketPosition(20); // Move rocket to the middle
-        setRocketImage("/rocket.png"); // Reset to original image
+        setRocketPosition(20);
+        setRocketImage("/rocket.png");
       } else if (isInMiddle && imageIndex < imageSequenceDown.length) {
-        setScrollCount((prevCount) => prevCount + 1); // Increment scroll count
+        setScrollCount((prevCount) => prevCount + 1);
         if (scrollCount >= 4) {
           setRocketImage(imageSequenceDown[imageIndex]);
           setImageIndex(imageIndex + 1);
@@ -27,9 +29,9 @@ const MuvanceHomePage = () => {
         }
       }
 
-      // Change to page 2
-      if (rocketImage === "/rocket6.png" && currentPage === 1) {
-        setCurrentPage(2);
+      // Check if rocket reached rocket6.png, then switch to LandingSection
+      if (imageIndex === imageSequenceDown.length - 1) {
+        setShowLanding(true); // Switch to LandingPage immediately
       }
     } else {
       // Scrolling up
@@ -47,11 +49,6 @@ const MuvanceHomePage = () => {
           setImageIndex(0);
         }
       }
-
-      // Change back to page 1
-      if (currentPage === 2) {
-        setCurrentPage(1);
-      }
     }
   };
 
@@ -65,11 +62,14 @@ const MuvanceHomePage = () => {
 
   useEffect(() => {
     window.addEventListener("wheel", handleWheel);
-
     return () => {
       window.removeEventListener("wheel", handleWheel);
     };
-  }, [rocketPosition, isInMiddle, imageIndex, scrollCount, currentPage]);
+  }, [rocketPosition, isInMiddle, imageIndex, scrollCount, showLanding]);
+
+  if (showLanding) {
+    return <LandingSection goBack={() => setShowLanding(false)} />; // Pass goBack prop
+  }
 
   return (
     <div
@@ -89,7 +89,6 @@ const MuvanceHomePage = () => {
         position: "relative",
       }}
     >
-      {/* Rocket */}
       <img
         src={rocketImage}
         alt="Rocket Image"
@@ -106,47 +105,39 @@ const MuvanceHomePage = () => {
         }}
         onTransitionEnd={handleTransitionEnd}
       />
-
-      {/* Page content */}
-      {currentPage === 1 && (
-        <div
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          zIndex: 1,
+        }}
+      >
+        <h1
           style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            zIndex: 1,
+            fontSize: "25vw",
+            fontWeight: "regular",
+            margin: 0,
+            fontFamily: "'Roskilde DEMO', sans-serif",
+            letterSpacing: "0.01em",
           }}
         >
-          <h1
-            style={{
-              fontSize: "25vw",
-              fontWeight: "regular",
-              margin: 0,
-              fontFamily: "'Roskilde DEMO', sans-serif",
-              letterSpacing: "0.01em",
-            }}
-          >
-            MUVANCE
-          </h1>
-          <p
-            style={{
-              fontSize: "2.9vw",
-              fontWeight: 600,
-              marginTop: "0.0rem",
-              fontFamily: "'Montserrat', sans-serif",
-              fontWeight: "900",
-              letterSpacing: "0.05em",
-            }}
-          >
-            THE NON-BULLSHIT DIGITAL MARKETING AGENCY
-          </p>
-        </div>
-      )}
-
-      {currentPage === 2 && <LandingSection />}
-
-      {/* Button */}
+          MUVANCE
+        </h1>
+        <p
+          style={{
+            fontSize: "2.9vw",
+            fontWeight: 600,
+            marginTop: "0.0rem",
+            fontFamily: "'Montserrat', sans-serif",
+            fontWeight: "900",
+            letterSpacing: "0.05em",
+          }}
+        >
+          THE NON-BULLSHIT DIGITAL MARKETING AGENCY
+        </p>
+      </div>
       <button
         style={{
           backgroundColor: "white",
@@ -172,7 +163,7 @@ const MuvanceHomePage = () => {
           e.target.style.color = "black";
         }}
       >
-        Get in Touch  
+        Get in Touch
       </button>
     </div>
   );
