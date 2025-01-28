@@ -172,7 +172,7 @@ const MuvanceHomePage = () => {
           e.target.style.color = "black";
         }}
       >
-        Get in Touch
+        Get in Touch  
       </button>
     </div>
   );
