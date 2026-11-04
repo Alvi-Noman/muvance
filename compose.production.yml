@@ -1,0 +1,65 @@
+# Production stack (runs on the VPS). Images are built by GitHub Actions and pulled from GHCR.
+# MongoDB is external (MongoDB Atlas). See DEPLOY.md.
+# This server is shared with Qravy, whose Caddy owns ports 80/443 and passes Muvance's domains to the
+# "muvance-proxy" container over the shared-edge network. Nothing here is published to the internet.
+#   IMAGE_TAG=sha-<commit> docker compose --env-file .env.production -f compose.production.yml up -d --wait
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    environment:
+      SITE_ADDRESS: http://${SITE_DOMAIN:?Set SITE_DOMAIN in .env.production}
+      ADMIN_ADDRESS: http://${ADMIN_DOMAIN:?Set ADMIN_DOMAIN in .env.production}
+      WWW_ADDRESS: http://www.${SITE_DOMAIN}
+      SITE_URL: https://${SITE_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      default:
+      shared-edge:
+        aliases:
+          - muvance-proxy
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *logging
+
+  api:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX in .env.production}/muvance-api:${IMAGE_TAG:-prod}
+    env_file:
+      - ${API_ENV_FILE:-./runtime/api.env}
+    environment:
+      NODE_ENV: production
+      PORT: '4000'
+      # Two proxies in front: Qravy's Caddy, then Muvance's.
+      TRUST_PROXY: '2'
+      COOKIE_SECURE: 'true'
+      ADMIN_URL: https://${ADMIN_DOMAIN}
+      CORS_ORIGIN: https://${SITE_DOMAIN},https://${ADMIN_DOMAIN}
+    restart: unless-stopped
+    logging: *logging
+
+  web:
+    image: ${IMAGE_PREFIX}/muvance-web:${IMAGE_TAG:-prod}
+    restart: unless-stopped
+    logging: *logging
+
+  admin:
+    image: ${IMAGE_PREFIX}/muvance-admin:${IMAGE_TAG:-prod}
+    restart: unless-stopped
+    logging: *logging
+
+networks:
+  shared-edge:
+    external: true

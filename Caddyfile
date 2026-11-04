@@ -1,0 +1,53 @@
+# Routes each Muvance domain to the right container. Addresses come from environment variables:
+#   production: SITE_ADDRESS=http://muvance.com  ADMIN_ADDRESS=http://admin.muvance.com …
+#   local:      SITE_ADDRESS=http://localhost:8180  ADMIN_ADDRESS=http://localhost:8181 …
+# In production HTTPS is handled in front of this by the server's main Caddy (see DEPLOY.md).
+{
+	servers {
+		# Keep the visitor's real IP from the main Caddy; this port isn't reachable from the internet.
+		trusted_proxies static private_ranges
+	}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
+(api) {
+	handle /api/* {
+		reverse_proxy api:4000
+	}
+}
+
+# www -> apex
+{$WWW_ADDRESS} {
+	redir {$SITE_URL}{uri} permanent
+}
+
+# Public website + booking API
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	import security_headers
+	import api
+	handle {
+		reverse_proxy web:80
+	}
+}
+
+# Admin CRM (never indexed by search engines)
+{$ADMIN_ADDRESS} {
+	encode zstd gzip
+	import security_headers
+	header X-Robots-Tag "noindex, nofollow"
+	import api
+	handle {
+		reverse_proxy admin:80
+	}
+}

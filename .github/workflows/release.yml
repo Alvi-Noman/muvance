@@ -1,0 +1,126 @@
+# Builds production images after CI passes on main, pushes them to GHCR and deploys to the VPS.
+# Setup: see DEPLOY.md (secrets, variables and server preparation).
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release-main
+  # A newer release waits for the running one instead of cancelling it mid-deploy.
+  cancel-in-progress: false
+
+env:
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  images:
+    name: Build & push (${{ matrix.image }})
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: api
+            file: apps/api/Dockerfile
+            app: ''
+          - image: web
+            file: docker/spa.Dockerfile
+            app: web
+          - image: admin
+            file: docker/spa.Dockerfile
+            app: admin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - name: Image name
+        id: name
+        run: echo "prefix=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          build-args: ${{ matrix.app && format('APP={0}', matrix.app) || '' }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.name.outputs.prefix }}/muvance-${{ matrix.image }}:sha-${{ env.SHA }}
+            ${{ steps.name.outputs.prefix }}/muvance-${{ matrix.image }}:prod
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy:
+    name: Deploy to VPS
+    needs: images
+    runs-on: ubuntu-latest
+    # Optional: add required reviewers to the "production" environment in GitHub to gate deploys.
+    environment:
+      name: production
+      url: https://${{ vars.ADMIN_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Upload stack config
+        env:
+          TARGET: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          test -n "$DEPLOY_PATH"
+          # Variables are meant to expand here, on the runner, before being sent over SSH.
+          # shellcheck disable=SC2029
+          ssh "$TARGET" "mkdir -p '$DEPLOY_PATH/runtime'"
+          scp compose.production.yml Caddyfile deploy/deploy.sh "$TARGET:$DEPLOY_PATH/"
+
+      - name: Deploy (rolls back automatically if unhealthy)
+        env:
+          TARGET: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          GHCR_USER: ${{ secrets.GHCR_READ_USER }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+        run: |
+          # shellcheck disable=SC2029
+          printf '%s' "$GHCR_TOKEN" | ssh "$TARGET" "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+          # shellcheck disable=SC2029
+          ssh "$TARGET" "sh '$DEPLOY_PATH/deploy.sh' 'sha-${SHA}'"
+
+      - name: Smoke test
+        env:
+          SITE: ${{ vars.SITE_DOMAIN }}
+          ADMIN: ${{ vars.ADMIN_DOMAIN }}
+        run: |
+          for url in "https://$SITE/" "https://$SITE/api/health" "https://$ADMIN/" "https://$ADMIN/api/health"; do
+            curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-all-errors -o /dev/null "$url"
+            echo "OK $url"
+          done

@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/coverage
+**/.turbo
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.github
+.vscode
+*.log
+deploy
+docker-compose.yml
+compose.production.yml
+Caddyfile
