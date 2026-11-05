@@ -12,15 +12,16 @@ concurrency:
 jobs:
   checks:
     name: Lint, typecheck, test & build
-    runs-on: ubuntu-latest
+    # Pinned: MongoDB never became ready on ubuntu-latest (Ubuntu 26).
+    runs-on: ubuntu-24.04
     env:
       TEST_MONGODB_URI: mongodb://localhost:27117
       MONGOMS_DISABLE_POSTINSTALL: '1'
     steps:
-      # Real MongoDB for the API tests (faster than downloading an in-memory server).
+      # Real MongoDB for the API tests, on the same major version as production (Atlas 8.0).
       - name: Start MongoDB
         run: |
-          docker run -d --name mongo -p 27117:27017 mongo:8
+          docker run -d --name mongo -p 27117:27017 mongo:8.0
           for _ in $(seq 1 30); do
             if docker exec mongo mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' >/dev/null 2>&1; then
               echo "MongoDB is ready"
@@ -29,6 +30,9 @@ jobs:
             sleep 2
           done
           docker logs mongo
+          # An annotation shows on the run's summary, without opening the logs.
+          state=$(docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' mongo)
+          echo "::error::MongoDB not ready: $state $(docker logs mongo 2>&1 | tail -n 3 | tr -d '\n' | cut -c1-500)"
           exit 1
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
