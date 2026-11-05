@@ -77,14 +77,6 @@
       opacity: 1;
     }
   }
-  @keyframes hud-sweep {
-    from {
-      transform: translateY(-20vh);
-    }
-    to {
-      transform: translateY(120vh);
-    }
-  }
   @keyframes hud-enter {
     from {
       opacity: 0;
@@ -120,18 +112,6 @@
       linear-gradient(90deg, rgb(92 225 255 / 0.05) 1px, transparent 1px);
     background-size: 44px 44px;
     mask-image: radial-gradient(ellipse at 50% 30%, black 15%, transparent 78%);
-  }
-
-  /* A slow scan line passing behind the panels. */
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0 0 auto;
-    z-index: -1;
-    height: 18vh;
-    pointer-events: none;
-    background: linear-gradient(transparent, rgb(92 225 255 / 0.05), transparent);
-    animation: hud-sweep 11s linear infinite;
   }
 
   /* Display type: the brightest word in each title (<em>) glows instead of slanting. */
@@ -273,7 +253,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body::after,
   .hud-pulse,
   .hud-enter {
     animation: none;
