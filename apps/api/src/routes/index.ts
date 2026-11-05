@@ -3,6 +3,7 @@ import { requireAuth } from '@/middlewares/auth';
 import { authRouter } from '@/modules/auth/auth.routes';
 import { availabilityRouter, bookingsRouter } from '@/modules/bookings/bookings.routes';
 import { dashboardRouter } from '@/modules/dashboard/dashboard.routes';
+import { devicesRouter } from '@/modules/devices/devices.routes';
 import { healthRouter } from '@/modules/health/health.routes';
 import { leadsRouter } from '@/modules/leads/leads.routes';
 import { meetingsRouter } from '@/modules/meetings/meetings.routes';
@@ -19,6 +20,7 @@ apiRouter.use('/auth', authRouter);
 
 // Admin (signed-in users; each route also checks role permissions)
 apiRouter.use('/dashboard', requireAuth, dashboardRouter);
+apiRouter.use('/devices', requireAuth, devicesRouter);
 apiRouter.use('/leads', requireAuth, leadsRouter);
 apiRouter.use('/meetings', requireAuth, meetingsRouter);
 apiRouter.use('/team', requireAuth, teamRouter);

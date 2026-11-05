@@ -4,6 +4,7 @@ import { hostTimeZone } from '@/config/booking';
 import { collections, isDuplicateKeyError } from '@/db/client';
 import type { MeetingDoc } from '@/db/types';
 import { logger } from '@/lib/logger';
+import { devicesService } from '@/modules/devices/devices.service';
 import {
   changeStage,
   logActivity,
@@ -162,6 +163,13 @@ export const bookingsService = {
       { leadId: leadId.toHexString(), startsAt, business: input.businessName },
       'New call booked',
     );
+    // Not awaited: the visitor shouldn't wait on, or be affected by, the phone alert.
+    void devicesService.notifyNewLead({
+      id: leadId.toHexString(),
+      name: input.name,
+      businessName: input.businessName,
+      startsAt,
+    });
     return {
       id: meeting._id.toHexString(),
       startsAt: meeting.startsAt.toISOString(),

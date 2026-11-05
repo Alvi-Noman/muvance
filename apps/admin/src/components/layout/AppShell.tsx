@@ -18,6 +18,7 @@ import { LogoMark } from '@/components/brand/Logo';
 import { ApiStatus, HudStatusBar } from '@/components/hud/HudStatusBar';
 import { Avatar } from '@/components/ui/misc';
 import { useLogout, useMe } from '@/features/auth/auth';
+import { usePushNotifications } from '@/features/notifications/push';
 import { cn } from '@/lib/cn';
 
 type NavItem = {
@@ -107,6 +108,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 export function AppShell() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
+  usePushNotifications();
   const section = nav.find((item) =>
     item.end ? pathname === item.to : pathname.startsWith(item.to),
   );

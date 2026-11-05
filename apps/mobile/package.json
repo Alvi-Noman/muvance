@@ -1,0 +1,18 @@
+{
+  "name": "@muvance/mobile",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Android shell around the admin, with push notifications for new leads.",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/push-notifications": "^8.1.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0"
+  }
+}

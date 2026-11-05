@@ -211,6 +211,9 @@ export const createUserSchema = z.object({
   role: z.enum(roles),
 });
 
+/** A phone's push token, saved by the Android app. */
+export const deviceTokenSchema = z.object({ token: z.string().min(20).max(4096) });
+
 export const updateUserSchema = z
   .object({
     role: z.enum(roles),

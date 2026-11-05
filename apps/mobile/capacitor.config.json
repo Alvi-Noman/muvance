@@ -1,0 +1,19 @@
+{
+  "appId": "com.muvance.admin",
+  "appName": "Muvance",
+  "webDir": "www",
+  "server": {
+    "url": "https://admin.muvance.com",
+    "errorPath": "offline.html"
+  },
+  "backgroundColor": "#040b13",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "disable",
+      "style": "DARK"
+    }
+  }
+}

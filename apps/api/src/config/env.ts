@@ -31,6 +31,9 @@ const envSchema = z.object({
    * How many reverse proxies sit in front of the API, so real client IPs are detected (rate limits
    * depend on it). "true" means 1. Production is 2: the server's main Caddy, then Muvance's own.
    */
+  /** Firebase service account JSON, base64 encoded. Without it, push notifications are off. */
+  FIREBASE_SERVICE_ACCOUNT: z.string().optional(),
+
   TRUST_PROXY: z
     .string()
     .default('false')

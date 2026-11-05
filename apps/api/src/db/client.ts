@@ -3,6 +3,7 @@ import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import type {
   ActivityDoc,
+  DeviceDoc,
   InviteDoc,
   LeadDoc,
   MeetingDoc,
@@ -58,6 +59,7 @@ export async function pingDb() {
 export const collections = {
   users: () => getDb().collection<UserDoc>('users'),
   sessions: () => getDb().collection<SessionDoc>('sessions'),
+  devices: () => getDb().collection<DeviceDoc>('devices'),
   invites: () => getDb().collection<InviteDoc>('invites'),
   leads: () => getDb().collection<LeadDoc>('leads'),
   meetings: () => getDb().collection<MeetingDoc>('meetings'),
@@ -140,6 +142,8 @@ async function ensureIndexes(database: Db) {
         name: 'username_unique',
       },
     ),
+    database.collection('devices').createIndex({ token: 1 }, { unique: true }),
+    database.collection('devices').createIndex({ userId: 1 }),
     database.collection('sessions').createIndex({ tokenHash: 1 }, { unique: true }),
     // MongoDB deletes expired sessions and invites automatically.
     database.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),

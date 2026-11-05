@@ -31,6 +31,15 @@ export interface UserDoc {
   lastLoginAt: Date | null;
 }
 
+/** A phone with the Android app, which gets a push when a new lead books. */
+export interface DeviceDoc {
+  _id: ObjectId;
+  token: string;
+  userId: ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface SessionDoc {
   _id: ObjectId;
   /** SHA-256 of the cookie token. The raw token is never stored. */

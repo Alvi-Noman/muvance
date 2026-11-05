@@ -28,3 +28,8 @@ Thumbs.db
 runtime/
 .env.production
 .deployed-tag
+
+# Android app: Firebase config and signing stay out of the repo
+apps/mobile/android/app/google-services.json
+*.keystore
+*.jks

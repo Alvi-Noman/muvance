@@ -8,6 +8,7 @@ import type {
   MeDto,
   Permission,
 } from '@muvance/shared';
+import { stopPush } from '@/features/notifications/push';
 import { api, ApiClientError } from '@/lib/api-client';
 import { meKey } from '@/lib/query-client';
 
@@ -51,7 +52,10 @@ export function useLogin() {
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<void>('/auth/logout'),
+    mutationFn: async () => {
+      await stopPush();
+      await api.post<void>('/auth/logout');
+    },
     onSettled: () => {
       queryClient.clear();
       queryClient.setQueryData(meKey, null);

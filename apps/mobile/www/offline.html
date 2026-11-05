@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Muvance</title>
+    <style>
+      body {
+        display: grid;
+        min-height: 100dvh;
+        margin: 0;
+        place-items: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background: #040b13;
+        color: #ecfcff;
+        font-family: system-ui, sans-serif;
+        text-align: center;
+      }
+      p {
+        color: #93b6c7;
+      }
+      button {
+        margin-top: 16px;
+        border: 0;
+        border-radius: 5px;
+        padding: 12px 24px;
+        background: #5ce1ff;
+        color: #040b13;
+        font-weight: 600;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>You're offline</h1>
+      <p>Muvance needs an internet connection. Check yours and try again.</p>
+      <button onclick="location.href = 'https://admin.muvance.com'">Try again</button>
+    </main>
+  </body>
+</html>

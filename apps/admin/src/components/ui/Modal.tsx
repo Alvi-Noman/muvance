@@ -16,11 +16,17 @@ type ModalProps = {
 /** Accessible dialog: Escape and backdrop close it, focus moves inside and returns afterwards. */
 export function Modal({ open, onClose, title, description, children, className }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // Kept in a ref so a new onClose on re-render doesn't re-run the effect below, which would
+  // pull focus back to the first field on every keystroke.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     // Focus the first field (or the panel) once it's rendered.
@@ -35,7 +41,7 @@ export function Modal({ open, onClose, title, description, children, className }
       document.body.style.overflow = '';
       previous?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return createPortal(
     <AnimatePresence>
