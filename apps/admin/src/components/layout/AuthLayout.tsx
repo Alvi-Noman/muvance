@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ArcReactor } from '@/components/hud/ArcReactor';
 
 /** Centered card layout for sign-in and invite pages. */
 export function AuthLayout({
@@ -12,16 +13,16 @@ export function AuthLayout({
 }) {
   return (
     <main className="grid min-h-dvh place-items-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-full bg-neutral-950 font-serif text-xl text-white">
-            M
-          </span>
-          <span className="text-sm font-medium text-neutral-500">Muvance Admin</span>
+      <div className="hud-enter w-full max-w-md">
+        <div className="flex flex-col items-center text-center">
+          <ArcReactor size={148} />
+          <p className="hud-label mt-5 text-hud">Muvance Admin</p>
+          <h1 className="mt-3 font-serif text-3xl leading-tight tracking-wider sm:text-4xl">
+            {title}
+          </h1>
+          {description && <p className="mt-2 text-sm text-neutral-500">{description}</p>}
         </div>
-        <h1 className="font-serif text-5xl leading-[0.95] tracking-tight">{title}</h1>
-        {description && <p className="mt-3 text-sm text-neutral-500">{description}</p>}
-        <div className="mt-8">{children}</div>
+        <div className="hud-panel mt-8 rounded-2xl p-6">{children}</div>
       </div>
     </main>
   );

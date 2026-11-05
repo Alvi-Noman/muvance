@@ -12,8 +12,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, useLocation } from 'react-router';
 import { roleLabels, type Permission } from '@muvance/shared';
+import { ArcReactor } from '@/components/hud/ArcReactor';
+import { ApiStatus, HudStatusBar } from '@/components/hud/HudStatusBar';
 import { Avatar } from '@/components/ui/misc';
 import { useLogout, useMe } from '@/features/auth/auth';
 import { cn } from '@/lib/cn';
@@ -41,15 +43,13 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const items = nav.filter((item) => !item.permission || me?.permissions.includes(item.permission));
 
   return (
-    <div className="flex h-full flex-col bg-neutral-950 text-neutral-300">
-      <div className="flex h-16 items-center gap-3 px-5">
-        <span className="grid size-8 place-items-center rounded-full bg-white font-serif text-lg text-neutral-950">
-          M
-        </span>
-        <span className="font-semibold text-white">Muvance</span>
-        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium tracking-wide text-neutral-300 uppercase">
-          CRM
-        </span>
+    <div className="flex h-full flex-col border-r border-hud/15 bg-void/85 text-neutral-500 backdrop-blur-md">
+      <div className="flex h-20 items-center gap-3 border-b border-hud/15 px-5">
+        <ArcReactor size={44} />
+        <div>
+          <p className="font-serif text-sm tracking-[0.18em] text-neutral-950">Muvance</p>
+          <p className="hud-label mt-0.5 text-[10px] text-hud">CRM</p>
+        </div>
       </div>
 
       <nav aria-label="Main" className="flex-1 space-y-1 px-3 py-4">
@@ -61,8 +61,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
-                isActive ? 'bg-white/10 text-white' : 'hover:bg-white/5 hover:text-white',
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium tracking-wide transition-all',
+                isActive
+                  ? 'bg-hud/10 text-hud shadow-[inset_2px_0_0_var(--color-hud),0_0_18px_-6px_rgb(92_225_255/0.6)]'
+                  : 'hover:bg-hud/5 hover:text-neutral-950',
               )
             }
           >
@@ -72,20 +74,26 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
+      <div className="hud-label px-5 pb-3 text-[10px] lg:hidden">
+        <ApiStatus />
+      </div>
+
       {me && (
-        <div className="border-t border-white/10 p-3">
+        <div className="border-t border-hud/15 p-3">
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
             <Avatar name={me.name} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">{me.name}</p>
-              <p className="truncate text-xs text-neutral-400">{roleLabels[me.role]}</p>
+              <p className="truncate text-sm font-medium text-neutral-950">{me.name}</p>
+              <p className="hud-label truncate text-[10px] text-neutral-400">
+                {roleLabels[me.role]}
+              </p>
             </div>
             <button
               type="button"
               onClick={() => logout.mutate()}
               aria-label="Sign out"
               title="Sign out"
-              className="grid size-8 place-items-center rounded-lg text-neutral-400 hover:bg-white/10 hover:text-white"
+              className="grid size-8 place-items-center rounded-lg text-neutral-400 hover:bg-red-50 hover:text-red-600"
             >
               <LogOut className="size-4" />
             </button>
@@ -98,6 +106,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
 export function AppShell() {
   const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+  const section = nav.find((item) =>
+    item.end ? pathname === item.to : pathname.startsWith(item.to),
+  );
 
   return (
     <div className="min-h-dvh lg:pl-64">
@@ -107,12 +119,10 @@ export function AppShell() {
       </aside>
 
       {/* Mobile top bar + drawer */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-black/5 bg-canvas/90 px-4 backdrop-blur-xl lg:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-hud/15 bg-void/90 px-4 backdrop-blur-xl lg:hidden">
         <div className="flex items-center gap-2.5">
-          <span className="grid size-7 place-items-center rounded-full bg-neutral-950 font-serif text-white">
-            M
-          </span>
-          <span className="font-semibold">Muvance</span>
+          <ArcReactor size={32} />
+          <span className="font-serif text-sm tracking-[0.18em]">Muvance</span>
         </div>
         <button
           type="button"
@@ -127,7 +137,7 @@ export function AppShell() {
         {open && (
           <div className="fixed inset-0 z-40 lg:hidden">
             <motion.div
-              className="absolute inset-0 bg-neutral-950/40"
+              className="absolute inset-0 bg-void/75"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -145,7 +155,7 @@ export function AppShell() {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close menu"
-                className="absolute top-4 right-3 grid size-8 place-items-center rounded-lg text-neutral-400 hover:bg-white/10 hover:text-white"
+                className="absolute top-6 right-3 grid size-8 place-items-center rounded-lg text-neutral-400 hover:bg-hud/10 hover:text-neutral-950"
               >
                 <X className="size-4" />
               </button>
@@ -155,7 +165,11 @@ export function AppShell() {
       </AnimatePresence>
 
       <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
-        <Outlet />
+        <HudStatusBar section={section?.label ?? 'Muvance'} />
+        {/* Keyed so each page powers on as you arrive. */}
+        <div key={pathname} className="hud-enter">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

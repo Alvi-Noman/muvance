@@ -2,15 +2,7 @@ import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn(
-        'rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <div className={cn('hud-panel rounded-2xl', className)} {...props} />;
 }
 
 export function CardHeader({
@@ -32,8 +24,8 @@ export function CardHeader({
       )}
     >
       <div className="min-w-0">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {description && <p className="mt-0.5 text-sm text-neutral-500">{description}</p>}
+        <h2 className="hud-label font-medium text-hud">{title}</h2>
+        {description && <p className="mt-1 text-sm text-neutral-500">{description}</p>}
       </div>
       {action}
     </div>

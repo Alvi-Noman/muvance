@@ -218,11 +218,11 @@ export function LeadsPage() {
 
       {/* Bulk actions */}
       {selected.size > 0 && canWrite && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl bg-neutral-950 px-4 py-2.5 text-sm text-white">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-hud/50 bg-hud/10 px-4 py-2.5 text-sm text-neutral-950 shadow-[0_0_24px_-8px_rgb(92_225_255/0.7)]">
           <span className="mr-2 font-medium">{selected.size} selected</span>
           <select
             aria-label="Move selected to stage"
-            className="h-8 rounded-lg bg-white/10 px-2 text-sm"
+            className="h-8 rounded-lg border border-hud/30 bg-void/60 px-2 text-sm"
             value=""
             onChange={(e) => {
               const stage = e.target.value as LeadStage | '';
@@ -239,7 +239,7 @@ export function LeadsPage() {
           </select>
           <select
             aria-label="Assign selected"
-            className="h-8 rounded-lg bg-white/10 px-2 text-sm"
+            className="h-8 rounded-lg border border-hud/30 bg-void/60 px-2 text-sm"
             value=""
             onChange={(e) =>
               e.target.value &&
@@ -256,7 +256,7 @@ export function LeadsPage() {
               </option>
             ))}
           </select>
-          {bulk.isPending && <Spinner className="size-4 text-white" />}
+          {bulk.isPending && <Spinner className="size-4 text-hud" />}
           <button
             type="button"
             onClick={() => setSelected(new Set())}

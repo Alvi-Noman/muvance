@@ -10,7 +10,7 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 export const controlStyles =
-  'w-full rounded-xl border border-black/10 bg-white px-3.5 text-sm text-neutral-950 outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:ring-4 focus:ring-black/5 disabled:bg-neutral-50 disabled:text-neutral-500 aria-[invalid=true]:border-red-400';
+  'w-full rounded-xl border border-hud/20 bg-void/60 px-3.5 text-sm text-neutral-950 outline-none transition placeholder:text-neutral-400 focus:border-hud focus:shadow-[0_0_0_3px_rgb(92_225_255/0.12),0_0_18px_rgb(92_225_255/0.2)] disabled:bg-neutral-50 disabled:text-neutral-500 aria-[invalid=true]:border-red-600';
 
 type FieldProps = {
   label: ReactNode;

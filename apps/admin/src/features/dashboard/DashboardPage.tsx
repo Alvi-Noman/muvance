@@ -16,6 +16,8 @@ import {
   lostReasons,
   type DashboardDto,
 } from '@muvance/shared';
+import { ArcReactor } from '@/components/hud/ArcReactor';
+import { HudGauge } from '@/components/hud/HudGauge';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { EmptyState, PageLoader } from '@/components/ui/misc';
 import { useCurrentUser } from '@/features/auth/auth';
@@ -50,17 +52,19 @@ function Stat({
   const body = (
     <Card className={cn('h-full p-5 transition-shadow', to && 'hover:shadow-md')}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-neutral-500">{label}</p>
+        <p className="hud-label text-[10px] leading-relaxed text-neutral-500">{label}</p>
         <span
           className={cn(
-            'grid size-8 shrink-0 place-items-center rounded-lg bg-neutral-100 text-neutral-600',
+            'grid size-8 shrink-0 place-items-center rounded-lg bg-hud/10 text-hud',
             tone,
           )}
         >
           {icon}
         </span>
       </div>
-      <p className="mt-3 font-serif text-4xl leading-none tabular-nums">{value}</p>
+      <p className="mt-3 font-serif text-3xl leading-none text-neutral-950 tabular-nums [text-shadow:0_0_18px_rgb(92_225_255/0.45)]">
+        {value}
+      </p>
       {hint && <p className="mt-2 text-xs text-neutral-500">{hint}</p>}
     </Card>
   );
@@ -79,22 +83,22 @@ function Funnel({ totals }: { totals: DashboardDto['totals'] }) {
     { label: 'Close rate', value: totals.closeRate, hint: 'Proposals that said yes' },
   ];
   return (
-    <Card className="grid divide-y divide-black/[0.06] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-      {rates.map((r, i) => (
-        <div key={r.label} className="flex items-center gap-4 p-5">
-          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-neutral-950 text-xs font-semibold text-white">
-            {i + 1}
-          </span>
-          <div>
-            <p className="text-sm text-neutral-500">{r.label}</p>
-            <p className="font-serif text-3xl leading-tight tabular-nums">{formatRate(r.value)}</p>
-            <p className="text-xs text-neutral-400">{r.hint}</p>
-          </div>
-        </div>
+    <Card className="grid divide-y divide-black/[0.08] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      {rates.map((r) => (
+        <HudGauge
+          key={r.label}
+          label={r.label}
+          hint={r.hint}
+          value={r.value}
+          display={formatRate(r.value)}
+        />
       ))}
     </Card>
   );
 }
+
+const count = (n: number, one: string, many = `${one}s`) =>
+  `${formatNumber(n)} ${n === 1 ? one : many}`;
 
 export function DashboardPage() {
   const me = useCurrentUser();
@@ -107,11 +111,27 @@ export function DashboardPage() {
 
   return (
     <>
-      <div className="mb-8">
-        <h1 className="font-serif text-4xl leading-none tracking-tight sm:text-5xl">
-          {greeting()}, <em>{me.name.split(' ')[0]}.</em>
-        </h1>
-        <p className="mt-2 text-sm text-neutral-500">Here&apos;s where your leads stand.</p>
+      <div className="mb-8 flex flex-col items-center gap-6 text-center sm:flex-row sm:text-left">
+        <ArcReactor size={164}>
+          <div>
+            <p className="font-serif text-3xl leading-none text-neutral-950 tabular-nums [text-shadow:0_0_14px_rgb(4_11_19)]">
+              {formatNumber(totals.leads)}
+            </p>
+            <p className="hud-label mt-1 text-[9px] text-neutral-950 [text-shadow:0_0_8px_rgb(4_11_19)]">
+              {totals.leads === 1 ? 'Lead' : 'Leads'}
+            </p>
+          </div>
+        </ArcReactor>
+        <div className="min-w-0">
+          <h1 className="font-serif text-2xl leading-tight tracking-wider sm:text-4xl">
+            {greeting()}, <em>{me.name.split(' ')[0]}.</em>
+          </h1>
+          <div className="hud-rule mt-3 w-full max-w-sm" />
+          <p className="mt-3 text-sm text-neutral-500">
+            {count(totals.upcomingMeetings, 'upcoming meeting')}, {count(totals.inReview, 'lead')}{' '}
+            waiting on the team, and {count(totals.newThisWeek, 'new lead')} this week.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">

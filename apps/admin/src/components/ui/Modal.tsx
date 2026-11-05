@@ -42,7 +42,7 @@ export function Modal({ open, onClose, title, description, children, className }
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
           <motion.div
-            className="absolute inset-0 bg-neutral-950/40 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-void/75 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -59,13 +59,13 @@ export function Modal({ open, onClose, title, description, children, className }
             exit={{ opacity: 0, y: 24, scale: 0.98 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             className={cn(
-              'relative max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl outline-none sm:max-w-lg sm:rounded-3xl',
+              'relative max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-hud/30 bg-white p-6 shadow-[0_0_60px_-10px_rgb(92_225_255/0.35)] outline-none sm:max-w-lg sm:rounded-3xl',
               className,
             )}
           >
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold">{title}</h2>
+                <h2 className="font-serif text-base tracking-wide">{title}</h2>
                 {description && <p className="mt-1 text-sm text-neutral-500">{description}</p>}
               </div>
               <button

@@ -62,7 +62,7 @@ export function PipelinePage() {
       >
         {/* Scrolls sideways on small screens. */}
         <div className="-mx-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
-          <div className="grid min-w-[72rem] grid-cols-6 gap-3">
+          <div className="grid min-w-[68rem] grid-cols-6 gap-3">
             {leadStages.map((stage) => (
               <Column key={stage} stage={stage} draggable={canWrite} />
             ))}
@@ -94,8 +94,8 @@ function Column({ stage, draggable }: { stage: LeadStage; draggable: boolean }) 
       ref={setNodeRef}
       aria-label={leadStageLabels[stage]}
       className={cn(
-        'flex max-h-[calc(100dvh-14rem)] min-h-64 flex-col rounded-2xl bg-black/[0.035] transition-colors',
-        isOver && 'bg-black/[0.07] ring-2 ring-neutral-950/10',
+        'flex max-h-[calc(100dvh-14rem)] min-h-64 flex-col rounded-2xl border border-hud/15 bg-hud/[0.03] transition-all',
+        isOver && 'border-hud/70 bg-hud/10 shadow-[0_0_28px_-6px_rgb(92_225_255/0.6)]',
       )}
     >
       <header className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
@@ -143,8 +143,8 @@ function LeadCard({ lead, overlay }: { lead: LeadDto; overlay?: boolean }) {
       to={`/leads/${lead.id}`}
       draggable={false}
       className={cn(
-        'block rounded-xl border border-black/[0.06] bg-white p-3 text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-md',
-        overlay && 'rotate-2 cursor-grabbing shadow-xl',
+        'block rounded-xl border border-hud/20 bg-white p-3 text-sm transition-all hover:border-hud/70 hover:shadow-[0_0_18px_-4px_rgb(92_225_255/0.6)]',
+        overlay && 'rotate-2 cursor-grabbing border-hud shadow-[0_0_30px_-4px_rgb(92_225_255/0.8)]',
       )}
     >
       <p className="truncate font-medium">{lead.name}</p>

@@ -3,10 +3,12 @@ import { LoaderCircle } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 const variants = {
-  primary: 'bg-neutral-950 text-white hover:bg-neutral-800',
-  secondary: 'border border-black/10 bg-white text-neutral-900 hover:bg-neutral-50',
+  primary:
+    'bg-hud text-void shadow-[0_0_18px_rgb(92_225_255/0.4)] hover:bg-neutral-950 hover:shadow-[0_0_26px_rgb(92_225_255/0.65)]',
+  secondary:
+    'border border-hud/30 bg-hud/[0.04] text-neutral-900 hover:border-hud/70 hover:bg-hud/10 hover:text-hud',
   ghost: 'text-neutral-600 hover:bg-black/5 hover:text-neutral-950',
-  danger: 'bg-red-600 text-white hover:bg-red-500',
+  danger: 'bg-red-600 text-void shadow-[0_0_18px_rgb(255_107_122/0.35)] hover:bg-red-500',
   'danger-ghost': 'text-red-600 hover:bg-red-50',
 } as const;
 
@@ -20,7 +22,7 @@ export type ButtonStyleProps = { variant?: keyof typeof variants; size?: keyof t
 
 export function buttonStyles({ variant = 'primary', size = 'md' }: ButtonStyleProps = {}) {
   return cn(
-    'inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-950 disabled:pointer-events-none disabled:opacity-50',
+    'inline-flex shrink-0 items-center justify-center font-semibold tracking-wide whitespace-nowrap transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hud disabled:pointer-events-none disabled:opacity-50',
     variants[variant],
     sizes[size],
   );

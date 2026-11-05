@@ -790,7 +790,9 @@ function RoasResult({ adSpend, delivered }: { adSpend: number | null; delivered:
       aria-live="polite"
       className={cn(
         'rounded-xl p-4',
-        roas == null ? 'bg-neutral-100 text-neutral-500' : 'bg-neutral-950 text-white',
+        roas == null
+          ? 'bg-neutral-100 text-neutral-500'
+          : 'border border-hud/40 bg-hud/10 text-neutral-950 shadow-[0_0_28px_-8px_rgb(92_225_255/0.6)]',
       )}
     >
       {roas == null ? (
@@ -799,8 +801,10 @@ function RoasResult({ adSpend, delivered }: { adSpend: number | null; delivered:
         </p>
       ) : (
         <>
-          <p className="font-serif text-5xl leading-none tabular-nums">{formatRoas(roas)}</p>
-          <p className="mt-2 text-xs text-neutral-400 tabular-nums">
+          <p className="font-serif text-5xl leading-none text-hud tabular-nums [text-shadow:0_0_24px_rgb(92_225_255/0.6)]">
+            {formatRoas(roas)}
+          </p>
+          <p className="mt-2 text-xs text-neutral-500 tabular-nums">
             {formatMoney(delivered!)} delivered ÷ {formatMoney(adSpend!)} ad spend
           </p>
         </>

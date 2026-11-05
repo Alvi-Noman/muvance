@@ -13,7 +13,7 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <MotionConfig reducedMotion="user">
         <RouterProvider router={router} />
-        <Toaster position="bottom-right" richColors closeButton />
+        <Toaster position="bottom-right" theme="dark" richColors closeButton />
       </MotionConfig>
     </QueryClientProvider>
   </StrictMode>,
