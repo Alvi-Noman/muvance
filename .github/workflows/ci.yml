@@ -13,19 +13,23 @@ jobs:
   checks:
     name: Lint, typecheck, test & build
     runs-on: ubuntu-latest
-    services:
-      # Real MongoDB for the API tests (faster than downloading an in-memory server).
-      mongo:
-        image: mongo:8
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok'"
-          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      TEST_MONGODB_URI: mongodb://localhost:27017
+      TEST_MONGODB_URI: mongodb://localhost:27117
       MONGOMS_DISABLE_POSTINSTALL: '1'
     steps:
+      # Real MongoDB for the API tests (faster than downloading an in-memory server).
+      - name: Start MongoDB
+        run: |
+          docker run -d --name mongo -p 27117:27017 mongo:8
+          for _ in $(seq 1 30); do
+            if docker exec mongo mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' >/dev/null 2>&1; then
+              echo "MongoDB is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs mongo
+          exit 1
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
