@@ -12,16 +12,17 @@ concurrency:
 jobs:
   checks:
     name: Lint, typecheck, test & build
-    # Pinned: MongoDB never became ready on ubuntu-latest (Ubuntu 26).
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       TEST_MONGODB_URI: mongodb://localhost:27117
       MONGOMS_DISABLE_POSTINSTALL: '1'
     steps:
       # Real MongoDB for the API tests, on the same major version as production (Atlas 8.0).
+      # GLIBC_TUNABLES: MongoDB refuses to start on the runners' Linux 6.19+ kernel without it
+      # (SERVER-121912). This only affects this throwaway test database.
       - name: Start MongoDB
         run: |
-          docker run -d --name mongo -p 27117:27017 mongo:8.0
+          docker run -d --name mongo -p 27117:27017 -e GLIBC_TUNABLES=glibc.pthread.rseq=1 mongo:8.0
           for _ in $(seq 1 30); do
             if docker exec mongo mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' >/dev/null 2>&1; then
               echo "MongoDB is ready"
