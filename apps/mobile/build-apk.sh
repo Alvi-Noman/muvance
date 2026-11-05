@@ -31,4 +31,6 @@ MSYS_NO_PATHCONV=1 docker run --rm \
   sh gradlew --no-daemon assembleRelease
 
 cp "$MOBILE/android/app/build/outputs/apk/release/app-release.apk" "$OUT"
+# The public download, once committed: https://admin.muvance.com/downloads/muvance-admin.apk
+cp "$OUT" "$REPO/apps/admin/public/downloads/muvance-admin.apk"
 echo "Built: $OUT"

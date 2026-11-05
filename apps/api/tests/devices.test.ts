@@ -57,7 +57,17 @@ describe('push notifications for new leads', () => {
     expect(tokens).toContain(token('active'));
     expect(tokens).not.toContain(token('disabled'));
     expect(message.title).toBe('New lead');
-    expect(message.body).toBe(`${bookingDetails.website} · ${bookingDetails.monthlySales}`);
+    const when = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Dhaka',
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(slot!));
+    expect(message.body).toBe(
+      `${bookingDetails.website} · ${bookingDetails.monthlySales} · ${when}`,
+    );
     expect(message.body).not.toContain(bookingDetails.name);
     const lead = await collections.leads().findOne({ phoneKey: '1736660001' });
     expect(message.leadId).toBe(lead!._id.toHexString());
@@ -77,7 +87,12 @@ describe('push notifications for new leads', () => {
     await add(token('alive'));
     await add(token('dead'));
 
-    const lead = { id: 'lead-1', website: 'a.com', monthlySales: '5 lac Taka' };
+    const lead = {
+      id: 'lead-1',
+      website: 'a.com',
+      monthlySales: '5 lac Taka',
+      startsAt: new Date(),
+    };
     vi.spyOn(pushSender, 'send').mockResolvedValue([token('dead')]);
     await devicesService.notifyNewLead(lead);
     expect(await collections.devices().countDocuments({ token: token('dead') })).toBe(0);

@@ -168,6 +168,7 @@ export const bookingsService = {
       id: leadId.toHexString(),
       website: input.website,
       monthlySales: input.monthlySales,
+      startsAt,
     });
     return {
       id: meeting._id.toHexString(),

@@ -14,6 +14,9 @@ bash apps/mobile/build-apk.sh
 
 The signed file lands at `~/muvance-admin.apk`. Install it by opening it on the phone.
 
+The build also copies it to `apps/admin/public/downloads/`. Commit and push that file to update the
+public download: https://admin.muvance.com/downloads/muvance-admin.apk
+
 To release a change to the app itself (icon, sound, name, native code), raise `versionCode` in
 `android/app/build.gradle` and build again. Phones can install it over the old version.
 

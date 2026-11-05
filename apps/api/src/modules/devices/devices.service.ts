@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb';
 import { can } from '@muvance/shared';
+import { hostTimeZone } from '@/config/booking';
 import { env } from '@/config/env';
 import { collections } from '@/db/client';
 import type { UserDoc } from '@/db/types';
@@ -46,6 +47,16 @@ export const pushSender = {
   },
 };
 
+/** The call's date and time, in the team's time zone: "Mon, Nov 9, 1:00 PM". */
+const callTime = new Intl.DateTimeFormat('en-US', {
+  timeZone: hostTimeZone.name,
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
 export const devicesService = {
   /** One phone belongs to whoever signed in on it last. */
   async register(user: UserDoc, token: string) {
@@ -65,7 +76,12 @@ export const devicesService = {
   },
 
   /** Alerts every active teammate who can see leads. Never throws: a booking must not depend on it. */
-  async notifyNewLead(lead: { id: string; website: string; monthlySales: string }): Promise<void> {
+  async notifyNewLead(lead: {
+    id: string;
+    website: string;
+    monthlySales: string;
+    startsAt: Date;
+  }): Promise<void> {
     try {
       const users = await collections
         .users()
@@ -83,7 +99,7 @@ export const devicesService = {
         {
           leadId: lead.id,
           title: 'New lead',
-          body: `${lead.website} · ${lead.monthlySales}`,
+          body: `${lead.website} · ${lead.monthlySales} · ${callTime.format(lead.startsAt)}`,
         },
       );
       if (dead.length) await collections.devices().deleteMany({ token: { $in: dead } });
