@@ -1,5 +1,6 @@
 import { ArrowLeft, CalendarDays, ChevronDown, Clock, Globe, Video } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { LogoMark } from '@/components/brand/Logo';
 import { siteConfig } from '@/config/site';
 import {
   addMinutes,
@@ -67,10 +68,12 @@ export function BookingInfoPanel({
       </AnimatePresence>
 
       <div className="flex items-center gap-3">
-        <span className="grid size-10 place-items-center rounded-full bg-white font-serif text-xl text-neutral-950">
-          M
+        <span className="grid size-10 place-items-center rounded-full bg-white text-neutral-950">
+          <LogoMark className="w-6" />
         </span>
-        <span className="text-sm text-neutral-400">{siteConfig.name}</span>
+        <span className="font-logo text-sm font-semibold tracking-[-0.02em] text-neutral-300">
+          {siteConfig.name}
+        </span>
       </div>
       <h2 className="mt-4 text-xl font-semibold tracking-tight">
         {durationMinutes}-min strategy call

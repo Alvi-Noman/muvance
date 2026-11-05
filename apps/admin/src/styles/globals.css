@@ -66,15 +66,8 @@
   --radius-2xl: 0.4375rem;
   --radius-3xl: 0.625rem;
 
-  --animate-hud-spin: hud-spin 24s linear infinite;
-  --animate-hud-spin-reverse: hud-spin 16s linear infinite reverse;
   --animate-hud-pulse: hud-pulse 3.2s ease-in-out infinite;
 
-  @keyframes hud-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
   @keyframes hud-pulse {
     0%,
     100% {
@@ -274,18 +267,6 @@
     animation: hud-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
 
-  /* Rings rotate around their own centre. */
-  .hud-spin,
-  .hud-spin-reverse {
-    transform-box: view-box;
-    transform-origin: center;
-  }
-  .hud-spin {
-    animation: var(--animate-hud-spin);
-  }
-  .hud-spin-reverse {
-    animation: var(--animate-hud-spin-reverse);
-  }
   .hud-pulse {
     animation: var(--animate-hud-pulse);
   }
@@ -293,8 +274,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   body::after,
-  .hud-spin,
-  .hud-spin-reverse,
   .hud-pulse,
   .hud-enter {
     animation: none;

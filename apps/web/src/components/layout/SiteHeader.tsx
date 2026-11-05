@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, Menu, X } from 'lucide-react';
 import { Link } from 'react-router';
+import { Logo } from '@/components/brand/Logo';
 import { siteConfig } from '@/config/site';
 import { SectionLink } from './SectionLink';
 import { cn } from '@/lib/cn';
@@ -43,8 +44,8 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-8">
-        <Link to="/" className="text-xl font-semibold tracking-tight">
-          {siteConfig.name}
+        <Link to="/">
+          <Logo />
         </Link>
 
         <nav aria-label="Main" className="hidden md:block">

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router';
+import { Logo } from '@/components/brand/Logo';
 import { Container } from '@/components/ui/Container';
 import { siteConfig } from '@/config/site';
 import { SectionLink } from './SectionLink';
@@ -11,7 +12,7 @@ export function SiteFooter() {
       <Container>
         <div className="grid gap-12 border-b border-black/10 pb-16 md:grid-cols-[2fr_1fr_1fr]">
           <div>
-            <p className="text-xl font-semibold tracking-tight">{siteConfig.name}</p>
+            <Logo />
             <p className="mt-3 max-w-xs text-sm text-neutral-500">{siteConfig.tagline}</p>
           </div>
 
@@ -39,7 +40,7 @@ export function SiteFooter() {
       {/* Oversized wordmark, cropped at the bottom edge */}
       <p
         aria-hidden
-        className="-mb-[0.22em] text-center font-serif text-[24vw] leading-none tracking-[-0.04em] text-neutral-950/[0.06] select-none"
+        className="-mb-[0.22em] text-center font-logo text-[20vw] leading-none font-semibold tracking-[-0.05em] text-neutral-950/[0.06] select-none"
       >
         {siteConfig.name}
       </p>

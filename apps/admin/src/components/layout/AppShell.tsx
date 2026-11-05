@@ -14,7 +14,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { roleLabels, type Permission } from '@muvance/shared';
-import { ArcReactor } from '@/components/hud/ArcReactor';
+import { LogoMark } from '@/components/brand/Logo';
 import { ApiStatus, HudStatusBar } from '@/components/hud/HudStatusBar';
 import { Avatar } from '@/components/ui/misc';
 import { useLogout, useMe } from '@/features/auth/auth';
@@ -45,7 +45,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col border-r border-hud/15 bg-void/85 text-neutral-500 backdrop-blur-md">
       <div className="flex h-20 items-center gap-3 border-b border-hud/15 px-5">
-        <ArcReactor size={44} />
+        <LogoMark className="w-11 text-hud drop-shadow-[0_0_10px_rgb(92_225_255/0.55)]" />
         <div>
           <p className="font-serif text-sm tracking-[0.18em] text-neutral-950">Muvance</p>
           <p className="hud-label mt-0.5 text-[10px] text-hud">CRM</p>
@@ -121,7 +121,7 @@ export function AppShell() {
       {/* Mobile top bar + drawer */}
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-hud/15 bg-void/90 px-4 backdrop-blur-xl lg:hidden">
         <div className="flex items-center gap-2.5">
-          <ArcReactor size={32} />
+          <LogoMark className="w-8 text-hud drop-shadow-[0_0_10px_rgb(92_225_255/0.55)]" />
           <span className="font-serif text-sm tracking-[0.18em]">Muvance</span>
         </div>
         <button

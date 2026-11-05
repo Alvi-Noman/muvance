@@ -3,6 +3,7 @@
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-logo: 'Sora', 'Inter', ui-sans-serif, sans-serif;
 
   /* Matches the hero photo backdrop so the image edges disappear. */
   --color-canvas: #f2f1ed;

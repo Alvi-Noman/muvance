@@ -16,7 +16,7 @@ import {
   lostReasons,
   type DashboardDto,
 } from '@muvance/shared';
-import { ArcReactor } from '@/components/hud/ArcReactor';
+import { LogoMark } from '@/components/brand/Logo';
 import { HudGauge } from '@/components/hud/HudGauge';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { EmptyState, PageLoader } from '@/components/ui/misc';
@@ -112,16 +112,7 @@ export function DashboardPage() {
   return (
     <>
       <div className="mb-8 flex flex-col items-center gap-6 text-center sm:flex-row sm:text-left">
-        <ArcReactor size={164}>
-          <div>
-            <p className="font-serif text-3xl leading-none text-neutral-950 tabular-nums [text-shadow:0_0_14px_rgb(4_11_19)]">
-              {formatNumber(totals.leads)}
-            </p>
-            <p className="hud-label mt-1 text-[9px] text-neutral-950 [text-shadow:0_0_8px_rgb(4_11_19)]">
-              {totals.leads === 1 ? 'Lead' : 'Leads'}
-            </p>
-          </div>
-        </ArcReactor>
+        <LogoMark className="w-28 text-hud drop-shadow-[0_0_18px_rgb(92_225_255/0.6)] sm:w-36" />
         <div className="min-w-0">
           <h1 className="font-serif text-2xl leading-tight tracking-wider sm:text-4xl">
             {greeting()}, <em>{me.name.split(' ')[0]}.</em>

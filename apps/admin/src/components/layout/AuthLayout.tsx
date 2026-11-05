@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ArcReactor } from '@/components/hud/ArcReactor';
+import { LogoMark } from '@/components/brand/Logo';
 
 /** Centered card layout for sign-in and invite pages. */
 export function AuthLayout({
@@ -15,7 +15,7 @@ export function AuthLayout({
     <main className="grid min-h-dvh place-items-center px-4 py-12">
       <div className="hud-enter w-full max-w-md">
         <div className="flex flex-col items-center text-center">
-          <ArcReactor size={148} />
+          <LogoMark className="w-32 text-hud drop-shadow-[0_0_18px_rgb(92_225_255/0.6)]" />
           <p className="hud-label mt-5 text-hud">Muvance Admin</p>
           <h1 className="mt-3 font-serif text-3xl leading-tight tracking-wider sm:text-4xl">
             {title}
