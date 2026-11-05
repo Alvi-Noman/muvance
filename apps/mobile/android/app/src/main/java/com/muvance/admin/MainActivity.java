@@ -1,6 +1,7 @@
 package com.muvance.admin;
 
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import androidx.core.app.NotificationManagerCompat;
@@ -17,15 +18,18 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Android draws apps behind the status and navigation bars. The admin is a normal web page,
-        // so keep it clear of them, and of the keyboard while typing.
-        View content = findViewById(android.R.id.content);
-        content.setBackgroundColor(getColor(R.color.ic_launcher_background));
-        ViewCompat.setOnApplyWindowInsetsListener(content, (view, windowInsets) -> {
-            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
-            view.setPadding(insets.left, insets.top, insets.right, insets.bottom);
-            return WindowInsetsCompat.CONSUMED;
-        });
+        // Android 15+ draws apps behind the status and navigation bars. The admin is a normal web page,
+        // so keep it clear of them, and of the keyboard. Older versions do this by themselves, and
+        // doing it there too may have been what closed the keyboard while typing on Android 11.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            View content = findViewById(android.R.id.content);
+            content.setBackgroundColor(getColor(R.color.ic_launcher_background));
+            ViewCompat.setOnApplyWindowInsetsListener(content, (view, windowInsets) -> {
+                Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
+                view.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+                return WindowInsetsCompat.CONSUMED;
+            });
+        }
 
         dismissNotification(getIntent());
     }
