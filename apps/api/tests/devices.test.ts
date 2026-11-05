@@ -57,10 +57,10 @@ describe('push notifications for new leads', () => {
     expect(tokens).toContain(token('active'));
     expect(tokens).not.toContain(token('disabled'));
     expect(message.title).toBe('New lead');
-    expect(message.body).toContain(bookingDetails.name);
-    expect(message.body).toContain(bookingDetails.businessName);
+    expect(message.body).toBe(`${bookingDetails.website} · ${bookingDetails.monthlySales}`);
+    expect(message.body).not.toContain(bookingDetails.name);
     const lead = await collections.leads().findOne({ phoneKey: '1736660001' });
-    expect(message.data.leadId).toBe(lead!._id.toHexString());
+    expect(message.leadId).toBe(lead!._id.toHexString());
   });
 
   it('removes dead phones, and a push failure never affects a booking', async () => {
@@ -77,7 +77,7 @@ describe('push notifications for new leads', () => {
     await add(token('alive'));
     await add(token('dead'));
 
-    const lead = { id: 'lead-1', name: 'A', businessName: 'B', startsAt: new Date() };
+    const lead = { id: 'lead-1', website: 'a.com', monthlySales: '5 lac Taka' };
     vi.spyOn(pushSender, 'send').mockResolvedValue([token('dead')]);
     await devicesService.notifyNewLead(lead);
     expect(await collections.devices().countDocuments({ token: token('dead') })).toBe(0);

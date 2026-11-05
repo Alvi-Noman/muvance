@@ -14,9 +14,10 @@ import {
   StickyNote,
   Trash2,
   UserCheck,
+  UserX,
   type LucideIcon,
 } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import {
   lostReasonLabels,
@@ -31,6 +32,7 @@ import {
   type MeetingDto,
   type MeetingType,
   calculateRoas,
+  openStages,
   partnerStatusLabels,
   partnerStatuses,
   type ProductDto,
@@ -40,9 +42,9 @@ import {
 } from '@muvance/shared';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
-import { Field, Input, Select, Textarea } from '@/components/ui/Field';
+import { Field, Input, Textarea } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
-import { Avatar, EmptyState, PageLoader } from '@/components/ui/misc';
+import { EmptyState, PageLoader } from '@/components/ui/misc';
 import { Can } from '@/features/auth/RequireAuth';
 import { useCan } from '@/features/auth/auth';
 import { ApiClientError } from '@/lib/api-client';
@@ -60,7 +62,6 @@ import {
 } from '@/lib/format';
 import {
   useAddActivity,
-  useAssignable,
   useDeleteLead,
   useLead,
   useUpdateLead,
@@ -72,11 +73,14 @@ import { MeetingStatusBadge, MeetingTypeBadge } from './stage-badges';
 import { stageOptions, stageStyles } from './stages';
 import { fromNumber, toNumber, useSyncedForm } from './use-synced-form';
 
+type LoseState = LostReason | 'pick' | 'disqualify' | null;
+
 export function LeadDetailPage() {
   const { id = '' } = useParams();
   const { data, isPending, error } = useLead(id);
   const [schedule, setSchedule] = useState<MeetingType | null>(null);
-  const [losing, setLosing] = useState<LostReason | 'pick' | null>(null);
+  const [losing, setLosing] = useState<LoseState>(null);
+  const [params, setParams] = useSearchParams();
 
   if (isPending) return <PageLoader />;
   if (error || !data) {
@@ -97,7 +101,11 @@ export function LeadDetailPage() {
   const { lead, meetings, activities } = data;
   return (
     <>
-      <LeadHeader lead={lead} onLose={() => setLosing('pick')} />
+      <LeadHeader
+        lead={lead}
+        onLose={() => setLosing('pick')}
+        onDisqualify={() => setLosing('disqualify')}
+      />
       <NextStep
         lead={lead}
         meetings={meetings}
@@ -126,7 +134,20 @@ export function LeadDetailPage() {
         defaultType={schedule ?? 'proposal'}
         onClose={() => setSchedule(null)}
       />
-      <LoseLead lead={lead} state={losing} onClose={() => setLosing(null)} />
+      <LoseLead
+        lead={lead}
+        // Arriving from the notification's Disqualify button opens the dialog straight away.
+        state={
+          losing ??
+          (params.get('disqualify') === '1' && openStages.includes(lead.stage)
+            ? 'disqualify'
+            : null)
+        }
+        onClose={() => {
+          setLosing(null);
+          if (params.has('disqualify')) setParams({}, { replace: true });
+        }}
+      />
     </>
   );
 }
@@ -135,12 +156,19 @@ export function LeadDetailPage() {
 /* Header                                                              */
 /* ------------------------------------------------------------------ */
 
-function LeadHeader({ lead, onLose }: { lead: LeadDto; onLose: () => void }) {
+function LeadHeader({
+  lead,
+  onLose,
+  onDisqualify,
+}: {
+  lead: LeadDto;
+  onLose: () => void;
+  onDisqualify: () => void;
+}) {
   const navigate = useNavigate();
   const canWrite = useCan('leads:write');
   const update = useUpdateLead(lead.id);
   const remove = useDeleteLead();
-  const assignable = useAssignable();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const website = websiteUrl(lead.website);
 
@@ -215,25 +243,12 @@ function LeadHeader({ lead, onLose }: { lead: LeadDto; onLose: () => void }) {
               ))}
             </select>
           </div>
-          <Select
-            aria-label="Owner"
-            disabled={!canWrite}
-            className="w-44"
-            value={lead.assignee?.id ?? ''}
-            onChange={(e) =>
-              update.mutate(
-                { assigneeId: e.target.value || null },
-                { onSuccess: () => toast.success('Owner updated') },
-              )
-            }
-          >
-            <option value="">Unassigned</option>
-            {assignable.data?.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </Select>
+          {canWrite && openStages.includes(lead.stage) && (
+            <Button variant="danger" onClick={onDisqualify}>
+              <UserX className="size-4" aria-hidden />
+              Disqualify
+            </Button>
+          )}
           <Can permission="leads:delete">
             <Button
               variant="danger-ghost"
@@ -283,22 +298,32 @@ function LoseLead({
   onClose,
 }: {
   lead: LeadDto;
-  state: LostReason | 'pick' | null;
+  state: LoseState;
   onClose: () => void;
 }) {
   const update = useUpdateLead(lead.id);
+  const disqualifying = state === 'disqualify';
   return (
     <LostReasonModal
       open={!!state}
       onClose={onClose}
-      defaultReason={state && state !== 'pick' ? state : undefined}
+      defaultReason={state && state !== 'pick' && !disqualifying ? state : undefined}
+      title={disqualifying ? `Disqualify ${lead.name}?` : undefined}
+      description={
+        disqualifying
+          ? lead.nextMeetingAt
+            ? 'They move to Disqualified. Their booked time opens up on the website for someone else.'
+            : 'They move to Disqualified.'
+          : undefined
+      }
+      confirmLabel={disqualifying ? 'Disqualify' : undefined}
       loading={update.isPending}
       onConfirm={(lostReason, lostNote) =>
         update.mutate(
           { stage: 'lost', lostReason, lostNote },
           {
             onSuccess: () => {
-              toast.success('Marked as lost');
+              toast.success(disqualifying ? 'Disqualified' : 'Marked as lost');
               onClose();
             },
           },
@@ -1498,12 +1523,6 @@ function ContactCard({ lead }: { lead: LeadDto }) {
           </div>
         )}
         {canWrite && <SaveBar dirty={form.dirty} onReset={form.reset} loading={update.isPending} />}
-        {lead.assignee && (
-          <p className="flex items-center gap-2 border-t border-black/[0.06] pt-4 text-xs text-neutral-500">
-            <Avatar name={lead.assignee.name} className="size-5 text-[9px]" />
-            Owned by {lead.assignee.name}
-          </p>
-        )}
       </form>
     </Card>
   );

@@ -1,14 +1,9 @@
 import { ObjectId } from 'mongodb';
 import { can } from '@muvance/shared';
-import { hostTimeZone } from '@/config/booking';
 import { env } from '@/config/env';
 import { collections } from '@/db/client';
 import type { UserDoc } from '@/db/types';
 import { logger } from '@/lib/logger';
-
-/** Created by the Android app; its importance and sound can't be changed from the server. */
-const CHANNEL_ID = 'new-leads';
-const SOUND = 'new_lead';
 
 /** FCM errors that mean a phone token is dead (app removed, data cleared). */
 const DEAD_TOKEN_ERRORS = new Set([
@@ -16,7 +11,7 @@ const DEAD_TOKEN_ERRORS = new Set([
   'messaging/invalid-registration-token',
 ]);
 
-type PushMessage = { title: string; body: string; data: Record<string, string> };
+type PushMessage = { leadId: string; title: string; body: string };
 
 let messaging: Promise<import('firebase-admin/messaging').Messaging | null> | undefined;
 
@@ -38,14 +33,11 @@ export const pushSender = {
   async send(tokens: string[], message: PushMessage): Promise<string[]> {
     const client = await firebase();
     if (!client) return [];
+    // Data only: the app builds the notification itself, because Firebase's can't have buttons.
     const { responses } = await client.sendEachForMulticast({
       tokens,
-      notification: { title: message.title, body: message.body },
-      data: message.data,
-      android: {
-        priority: 'high',
-        notification: { channelId: CHANNEL_ID, sound: SOUND, tag: message.data.leadId },
-      },
+      data: message,
+      android: { priority: 'high' },
     });
     return tokens.filter((_, i) => {
       const code = responses[i]?.error?.code;
@@ -53,15 +45,6 @@ export const pushSender = {
     });
   },
 };
-
-const callTime = new Intl.DateTimeFormat('en-US', {
-  timeZone: hostTimeZone.name,
-  weekday: 'short',
-  month: 'short',
-  day: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-});
 
 export const devicesService = {
   /** One phone belongs to whoever signed in on it last. */
@@ -82,12 +65,7 @@ export const devicesService = {
   },
 
   /** Alerts every active teammate who can see leads. Never throws: a booking must not depend on it. */
-  async notifyNewLead(lead: {
-    id: string;
-    name: string;
-    businessName: string;
-    startsAt: Date;
-  }): Promise<void> {
+  async notifyNewLead(lead: { id: string; website: string; monthlySales: string }): Promise<void> {
     try {
       const users = await collections
         .users()
@@ -103,9 +81,9 @@ export const devicesService = {
       const dead = await pushSender.send(
         devices.map((d) => d.token),
         {
+          leadId: lead.id,
           title: 'New lead',
-          body: `${lead.name} · ${lead.businessName} · ${callTime.format(lead.startsAt)}`,
-          data: { leadId: lead.id },
+          body: `${lead.website} · ${lead.monthlySales}`,
         },
       );
       if (dead.length) await collections.devices().deleteMany({ token: { $in: dead } });

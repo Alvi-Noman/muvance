@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import {
   leadSorts,
+  lostReasonLabels,
   openStages,
   type LeadDto,
   type LeadListQuery,
@@ -13,7 +14,7 @@ import {
 import { Button, buttonStyles } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input, Select } from '@/components/ui/Field';
-import { Avatar, EmptyState, PageHeader, Spinner } from '@/components/ui/misc';
+import { EmptyState, PageHeader, Spinner } from '@/components/ui/misc';
 import { Can } from '@/features/auth/RequireAuth';
 import { useCan } from '@/features/auth/auth';
 import { api, toQuery } from '@/lib/api-client';
@@ -28,7 +29,7 @@ import {
 } from '@/lib/format';
 import { LeadFormModal } from './LeadFormModal';
 import { LostReasonModal } from './LostReasonModal';
-import { useAssignable, useBulkUpdate, useLeads, useMoveLead, useTags } from './leads-api';
+import { useBulkUpdate, useLeads, useMoveLead, useTags } from './leads-api';
 import { StageBadge } from './stage-badges';
 import { stageOptions } from './stages';
 
@@ -38,6 +39,7 @@ const sortLabels: Record<(typeof leadSorts)[number], string> = {
   '-lastActivityAt': 'Recent activity',
   name: 'Name (A–Z)',
   '-revenue': 'Highest revenue',
+  '-decidedAt': 'Most recent',
 };
 
 const PAGE_SIZE = 25;
@@ -57,14 +59,14 @@ export function LeadsPage() {
     stage: (params.get('stage') as LeadStage) || undefined,
     // The main list is your working list. Lost leads are under the Lost stage, and in search.
     excludeLost: params.get('stage') || params.get('q') ? undefined : 'true',
-    assignee: params.get('assignee') ?? undefined,
     tag: params.get('tag') ?? undefined,
-    sort: (params.get('sort') as LeadListQuery['sort']) || '-createdAt',
+    sort:
+      (params.get('sort') as LeadListQuery['sort']) ||
+      (params.get('stage') === 'lost' ? '-decidedAt' : '-createdAt'),
     page: Number(params.get('page') ?? 1),
     pageSize: PAGE_SIZE,
   };
   const leads = useLeads(query);
-  const assignable = useAssignable();
   const tags = useTags();
   const bulk = useBulkUpdate();
   const move = useMoveLead();
@@ -92,7 +94,8 @@ export function LeadsPage() {
   const items = leads.data?.items ?? [];
   const total = leads.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const filtered = !!(query.q || query.stage || query.assignee || query.tag);
+  const filtered = !!(query.q || query.stage || query.tag);
+  const lostView = query.stage === 'lost';
   const allSelected = items.length > 0 && items.every((l) => selected.has(l.id));
 
   const toggle = (id: string) =>
@@ -103,11 +106,7 @@ export function LeadsPage() {
       return next;
     });
 
-  const runBulk = (change: {
-    stage?: LeadStage;
-    lostReason?: LostReason;
-    assigneeId?: string | null;
-  }) =>
+  const runBulk = (change: { stage?: LeadStage; lostReason?: LostReason }) =>
     bulk.mutate(
       { ids: [...selected], ...change },
       {
@@ -151,7 +150,31 @@ export function LeadsPage() {
       />
 
       {/* Filters */}
-      <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_repeat(4,minmax(0,11rem))]">
+      <div
+        role="group"
+        aria-label="Which leads"
+        className="mb-3 inline-flex gap-1 rounded-xl border border-hud/20 bg-void/60 p-1"
+      >
+        {[
+          { label: 'Active', stage: null, on: !lostView },
+          { label: 'Disqualified', stage: 'lost', on: lostView },
+        ].map((tab) => (
+          <button
+            key={tab.label}
+            type="button"
+            aria-pressed={tab.on}
+            onClick={() => update({ stage: tab.stage, sort: null })}
+            className={cn(
+              'rounded-lg px-4 py-1.5 text-sm font-medium transition-colors',
+              tab.on ? 'bg-hud/15 text-hud' : 'text-neutral-500 hover:text-neutral-950',
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_repeat(3,minmax(0,11rem))]">
         <div className="relative sm:col-span-2 lg:col-span-1">
           <Search
             className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-neutral-400"
@@ -178,20 +201,6 @@ export function LeadsPage() {
           ))}
         </Select>
         <Select
-          aria-label="Assignee"
-          value={query.assignee ?? ''}
-          onChange={(e) => update({ assignee: e.target.value || null })}
-        >
-          <option value="">Anyone</option>
-          <option value="me">Assigned to me</option>
-          <option value="unassigned">Unassigned</option>
-          {assignable.data?.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </Select>
-        <Select
           aria-label="Tag"
           value={query.tag ?? ''}
           onChange={(e) => update({ tag: e.target.value || null })}
@@ -208,11 +217,13 @@ export function LeadsPage() {
           value={query.sort}
           onChange={(e) => update({ sort: e.target.value })}
         >
-          {leadSorts.map((s) => (
-            <option key={s} value={s}>
-              {sortLabels[s]}
-            </option>
-          ))}
+          {leadSorts
+            .filter((s) => lostView || s !== '-decidedAt')
+            .map((s) => (
+              <option key={s} value={s}>
+                {sortLabels[s]}
+              </option>
+            ))}
         </Select>
       </div>
 
@@ -234,25 +245,6 @@ export function LeadsPage() {
             {stageOptions.map((o) => (
               <option key={o.value} value={o.value} className="text-neutral-900">
                 {o.label}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Assign selected"
-            className="h-8 rounded-lg border border-hud/30 bg-void/60 px-2 text-sm"
-            value=""
-            onChange={(e) =>
-              e.target.value &&
-              runBulk({ assigneeId: e.target.value === 'none' ? null : e.target.value })
-            }
-          >
-            <option value="">Assign to…</option>
-            <option value="none" className="text-neutral-900">
-              Unassigned
-            </option>
-            {assignable.data?.map((u) => (
-              <option key={u.id} value={u.id} className="text-neutral-900">
-                {u.name}
               </option>
             ))}
           </select>
@@ -323,10 +315,9 @@ export function LeadsPage() {
                   <th className={cn('py-3 pr-4', !canWrite && 'pl-5')}>Lead</th>
                   <th className="py-3 pr-4">Website</th>
                   <th className="py-3 pr-4">Monthly sales</th>
-                  <th className="py-3 pr-4">Stage</th>
-                  <th className="py-3 pr-4">Call time</th>
+                  <th className="py-3 pr-4">{lostView ? 'Reason' : 'Stage'}</th>
+                  <th className="py-3 pr-4">{lostView ? 'Disqualified on' : 'Call time'}</th>
                   <th className="hidden py-3 pr-4 lg:table-cell">Phone</th>
-                  <th className="hidden py-3 pr-4 2xl:table-cell">Owner</th>
                   <th className={cn('hidden py-3 lg:table-cell', canWrite ? 'pr-2' : 'pr-5')}>
                     Booked on
                   </th>
@@ -374,40 +365,36 @@ export function LeadsPage() {
                     <td className="max-w-40 truncate py-3 pr-4 text-neutral-700">
                       <MonthlySales lead={lead} />
                     </td>
-                    <td className="py-3 pr-4">
-                      <StageBadge stage={lead.stage} />
+                    <td className="max-w-56 py-3 pr-4">
+                      {lostView ? <LostReason lead={lead} /> : <StageBadge stage={lead.stage} />}
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap text-neutral-700">
-                      {lead.nextMeetingAt ? (
-                        <>
-                          <p className="font-medium tabular-nums">
-                            {formatTime(lead.nextMeetingAt)}
-                            {lead.nextMeetingType === 'proposal' && (
-                              <span className="ml-1.5 rounded-md bg-neutral-950 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                                Proposal
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-xs text-neutral-500">
-                            {formatDay(lead.nextMeetingAt)}
-                          </p>
-                        </>
+                      {lostView ? (
+                        <DisqualifiedOn lead={lead} />
                       ) : (
-                        <span className="text-neutral-400">—</span>
+                        <>
+                          {lead.nextMeetingAt ? (
+                            <>
+                              <p className="font-medium tabular-nums">
+                                {formatTime(lead.nextMeetingAt)}
+                                {lead.nextMeetingType === 'proposal' && (
+                                  <span className="ml-1.5 rounded-md bg-neutral-950 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                    Proposal
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs text-neutral-500">
+                                {formatDay(lead.nextMeetingAt)}
+                              </p>
+                            </>
+                          ) : (
+                            <span className="text-neutral-400">—</span>
+                          )}
+                        </>
                       )}
                     </td>
                     <td className="hidden py-3 pr-4 whitespace-nowrap text-neutral-600 tabular-nums lg:table-cell">
                       {lead.phone}
-                    </td>
-                    <td className="hidden py-3 pr-4 2xl:table-cell">
-                      {lead.assignee ? (
-                        <span className="flex items-center gap-2">
-                          <Avatar name={lead.assignee.name} className="size-6 text-[10px]" />
-                          <span className="truncate text-neutral-700">{lead.assignee.name}</span>
-                        </span>
-                      ) : (
-                        <span className="text-neutral-400">Unassigned</span>
-                      )}
                     </td>
                     <td
                       className={cn(
@@ -457,22 +444,41 @@ export function LeadsPage() {
                           {lead.website ? websiteLabel(lead.website) : '—'}
                         </dd>
                       </div>
-                      <div className="min-w-0">
-                        <dt className="text-neutral-400">
-                          {lead.nextMeetingType === 'proposal' ? 'Proposal' : 'Call time'}
-                        </dt>
-                        <dd className="font-medium text-neutral-700">
-                          {lead.nextMeetingAt
-                            ? `${formatTime(lead.nextMeetingAt)} · ${formatDay(lead.nextMeetingAt)}`
-                            : '—'}
-                        </dd>
-                      </div>
-                      <div className="min-w-0">
-                        <dt className="text-neutral-400">Booked on</dt>
-                        <dd className="text-neutral-700">
-                          {formatDate(lead.createdAt)}, {formatTime(lead.createdAt)}
-                        </dd>
-                      </div>
+                      {lostView ? (
+                        <>
+                          <div className="min-w-0">
+                            <dt className="text-neutral-400">Reason</dt>
+                            <dd className="text-neutral-700">
+                              <LostReason lead={lead} />
+                            </dd>
+                          </div>
+                          <div className="min-w-0">
+                            <dt className="text-neutral-400">Disqualified on</dt>
+                            <dd className="text-neutral-700">
+                              <DisqualifiedOn lead={lead} />
+                            </dd>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="min-w-0">
+                            <dt className="text-neutral-400">
+                              {lead.nextMeetingType === 'proposal' ? 'Proposal' : 'Call time'}
+                            </dt>
+                            <dd className="font-medium text-neutral-700">
+                              {lead.nextMeetingAt
+                                ? `${formatTime(lead.nextMeetingAt)} · ${formatDay(lead.nextMeetingAt)}`
+                                : '—'}
+                            </dd>
+                          </div>
+                          <div className="min-w-0">
+                            <dt className="text-neutral-400">Booked on</dt>
+                            <dd className="text-neutral-700">
+                              {formatDate(lead.createdAt)}, {formatTime(lead.createdAt)}
+                            </dd>
+                          </div>
+                        </>
+                      )}
                     </dl>
                   </Link>
                   {canWrite && (
@@ -604,5 +610,31 @@ function DisqualifyButton({
     >
       <UserX className="size-4" aria-hidden />
     </button>
+  );
+}
+
+/** Why a lead was lost or disqualified, with any note they left. */
+function LostReason({ lead }: { lead: LeadDto }) {
+  return (
+    <>
+      <p className="font-medium text-neutral-800">
+        {lead.lostReason ? lostReasonLabels[lead.lostReason] : 'No reason given'}
+      </p>
+      {lead.lostNote && (
+        <p className="truncate text-xs text-neutral-500" title={lead.lostNote}>
+          {lead.lostNote}
+        </p>
+      )}
+    </>
+  );
+}
+
+function DisqualifiedOn({ lead }: { lead: LeadDto }) {
+  const at = lead.decidedAt ?? lead.updatedAt;
+  return (
+    <>
+      <p>{formatDate(at)}</p>
+      <p className="text-xs text-neutral-500 tabular-nums">{formatTime(at)}</p>
+    </>
   );
 }

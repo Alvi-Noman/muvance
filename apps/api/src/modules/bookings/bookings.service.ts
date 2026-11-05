@@ -166,9 +166,8 @@ export const bookingsService = {
     // Not awaited: the visitor shouldn't wait on, or be affected by, the phone alert.
     void devicesService.notifyNewLead({
       id: leadId.toHexString(),
-      name: input.name,
-      businessName: input.businessName,
-      startsAt,
+      website: input.website,
+      monthlySales: input.monthlySales,
     });
     return {
       id: meeting._id.toHexString(),

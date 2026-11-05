@@ -357,6 +357,7 @@ export const leadSorts = [
   '-lastActivityAt',
   'name',
   '-revenue',
+  '-decidedAt',
 ] as const;
 
 export const leadListQuerySchema = z.object({

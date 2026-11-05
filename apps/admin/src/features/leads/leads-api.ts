@@ -14,7 +14,6 @@ import type {
   MeetingStatus,
   ScheduleMeetingInput,
   UpdateLeadInput,
-  UserRefDto,
 } from '@muvance/shared';
 import { api, toQuery } from '@/lib/api-client';
 
@@ -25,7 +24,6 @@ export const keys = {
   tags: ['leads', 'tags'] as const,
   meetings: ['meetings'] as const,
   dashboard: ['dashboard'] as const,
-  assignable: ['team', 'assignable'] as const,
 };
 
 export function useLeads(query: LeadListQuery) {
@@ -45,14 +43,6 @@ export function useLead(id: string) {
 
 export function useTags() {
   return useQuery({ queryKey: keys.tags, queryFn: () => api.get<string[]>('/leads/tags') });
-}
-
-export function useAssignable() {
-  return useQuery({
-    queryKey: keys.assignable,
-    queryFn: () => api.get<UserRefDto[]>('/team/assignable'),
-    staleTime: 5 * 60_000,
-  });
 }
 
 export function useDashboard() {

@@ -14,7 +14,7 @@ import {
 import { CalendarClock } from 'lucide-react';
 import { Link } from 'react-router';
 import { leadStageLabels, leadStages, type LeadDto, type LeadStage } from '@muvance/shared';
-import { Avatar, PageHeader, Spinner } from '@/components/ui/misc';
+import { PageHeader, Spinner } from '@/components/ui/misc';
 import { useCan } from '@/features/auth/auth';
 import { cn } from '@/lib/cn';
 import { formatDay, formatTakaShort, formatTime } from '@/lib/format';
@@ -156,14 +156,13 @@ function LeadCard({ lead, overlay }: { lead: LeadDto; overlay?: boolean }) {
           {formatDay(lead.nextMeetingAt)}, {formatTime(lead.nextMeetingAt)}
         </p>
       )}
-      {(lead.assignee || revenue != null || percent != null) && (
+      {(revenue != null || percent != null) && (
         <div className="mt-2.5 flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-neutral-700 tabular-nums">
             {revenue != null && `৳${formatTakaShort(revenue)}/mo`}
             {revenue != null && percent != null && ' · '}
             {percent != null && `${percent}%`}
           </span>
-          {lead.assignee && <Avatar name={lead.assignee.name} className="size-5 text-[9px]" />}
         </div>
       )}
     </Link>

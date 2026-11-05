@@ -9,6 +9,9 @@ type WindowWithCapacitor = Window & { Capacitor?: { isNativePlatform?: () => boo
 /** True only inside the Android app, where Capacitor adds itself to the page. */
 const isNativeApp = () => (window as WindowWithCapacitor).Capacitor?.isNativePlatform?.() === true;
 
+/** What a new lead push carries. `action` says which part of the notification was tapped. */
+type LeadPush = { leadId?: string; title?: string; body?: string; action?: string };
+
 // This phone's push token, so signing out can stop alerts for this account.
 let currentToken: string | null = null;
 
@@ -57,20 +60,28 @@ export function usePushNotifications() {
           void api.post('/devices', { token: value }).catch(() => {});
         }),
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          const leadId = (notification.data as { leadId?: string } | undefined)?.leadId;
+          const { leadId, title, body } = notification.data as LeadPush;
           playAlert();
           void queryClient.invalidateQueries();
-          toast(notification.title ?? 'New lead', {
-            description: notification.body,
+          toast(title ?? 'New lead', {
+            description: body,
             duration: 10_000,
             action: leadId
               ? { label: 'Open', onClick: () => void navigate(`/leads/${leadId}`) }
               : undefined,
+            cancel: leadId
+              ? {
+                  label: 'Disqualify',
+                  onClick: () => void navigate(`/leads/${leadId}?disqualify=1`),
+                }
+              : undefined,
           });
         }),
         PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
-          const leadId = (notification.data as { leadId?: string } | undefined)?.leadId;
-          if (leadId) void navigate(`/leads/${leadId}`);
+          const { leadId, action } = notification.data as LeadPush;
+          if (!leadId) return;
+          // Disqualifying needs a reason, so the button opens the dialog rather than doing it.
+          void navigate(`/leads/${leadId}${action === 'disqualify' ? '?disqualify=1' : ''}`);
         }),
       ]);
       cleanup = () => handles.forEach((handle) => void handle.remove());

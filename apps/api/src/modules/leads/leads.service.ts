@@ -49,6 +49,7 @@ const sorts: Record<ListQuery['sort'], Sort> = {
   '-lastActivityAt': { lastActivityAt: -1 },
   name: { name: 1 },
   '-revenue': { 'discovery.monthlyRevenue': -1, createdAt: -1 },
+  '-decidedAt': { decidedAt: -1, createdAt: -1 },
 };
 
 const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -371,7 +372,6 @@ export const leadsService = {
       'Sales channels',
       'Sales target (offer)',
       'Commission %',
-      'Owner',
       'Source',
       'Next meeting',
       'Created',
@@ -401,7 +401,6 @@ export const leadsService = {
       l.discovery.channels.map((c) => salesChannelLabels[c]).join('; '),
       l.offer.salesTarget ?? '',
       l.offer.commissionPercent ?? '',
-      l.assignee?.name ?? '',
       l.source,
       l.nextMeetingAt ?? '',
       l.createdAt,

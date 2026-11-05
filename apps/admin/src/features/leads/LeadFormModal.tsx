@@ -3,9 +3,9 @@ import { createLeadSchema } from '@muvance/shared';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
-import { Field, Input, Select, Textarea } from '@/components/ui/Field';
+import { Field, Input, Textarea } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
-import { useAssignable, useCreateLead } from './leads-api';
+import { useCreateLead } from './leads-api';
 
 const empty = { name: '', phone: '', businessName: '', website: '', monthlySales: '', message: '' };
 
@@ -16,9 +16,7 @@ const empty = { name: '', phone: '', businessName: '', website: '', monthlySales
 export function LeadFormModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const create = useCreateLead();
-  const assignable = useAssignable();
   const [values, setValues] = useState(empty);
-  const [assigneeId, setAssigneeId] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const set = (key: keyof typeof empty) => (e: { target: { value: string } }) =>
@@ -26,7 +24,7 @@ export function LeadFormModal({ open, onClose }: { open: boolean; onClose: () =>
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const parsed = createLeadSchema.safeParse({ ...values, assigneeId: assigneeId || null });
+    const parsed = createLeadSchema.safeParse(values);
     if (!parsed.success) {
       const next: Record<string, string> = {};
       for (const issue of parsed.error.issues) next[String(issue.path[0])] ??= issue.message;
@@ -101,18 +99,6 @@ export function LeadFormModal({ open, onClose }: { open: boolean; onClose: () =>
                   Taka
                 </span>
               </div>
-            )}
-          </Field>
-          <Field label="Owner">
-            {(p) => (
-              <Select {...p} value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
-                <option value="">Unassigned</option>
-                {assignable.data?.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </Select>
             )}
           </Field>
         </div>
