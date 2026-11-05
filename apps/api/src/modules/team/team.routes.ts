@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { inviteUserSchema, updateUserSchema } from '@muvance/shared';
+import { createUserSchema, inviteUserSchema, updateUserSchema } from '@muvance/shared';
 import { currentUser, requirePermission } from '@/middlewares/auth';
 import { validateBody } from '@/middlewares/validate';
 import { teamService } from './team.service';
@@ -16,6 +16,10 @@ teamRouter.use(requirePermission('team:manage'));
 
 teamRouter.get('/', async (_req, res) => {
   res.json(await teamService.list());
+});
+
+teamRouter.post('/', validateBody(createUserSchema), async (req, res) => {
+  res.status(201).json(await teamService.create(currentUser(req), req.body));
 });
 
 teamRouter.post('/invites', validateBody(inviteUserSchema), async (req, res) => {

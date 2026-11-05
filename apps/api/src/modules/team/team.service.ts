@@ -1,5 +1,7 @@
 import { ObjectId } from 'mongodb';
+import { usernameKey } from '@muvance/shared';
 import type {
+  CreateUserInput,
   InviteLinkDto,
   InviteUserInput,
   Role,
@@ -7,10 +9,10 @@ import type {
   UpdateUserInput,
 } from '@muvance/shared';
 import { env } from '@/config/env';
-import { collections } from '@/db/client';
+import { collections, isDuplicateKeyError } from '@/db/client';
 import type { UserDoc } from '@/db/types';
 import { toObjectId } from '@/lib/object-id';
-import { hashToken, randomToken } from '@/lib/security';
+import { hashPassword, hashToken, randomToken } from '@/lib/security';
 import { sessionsService } from '@/modules/auth/sessions.service';
 import { HttpError } from '@/utils/http-error';
 import { toInviteDto, toUserDto } from './team.mappers';
@@ -67,6 +69,51 @@ export const teamService = {
         .toArray(),
     ]);
     return { users: users.map(toUserDto), invites: invites.map(toInviteDto) };
+  },
+
+  /** Adds someone with a starting password, which they must replace when they first sign in. */
+  async create(actor: UserDoc, input: CreateUserInput) {
+    if (!canManageRole(actor, input.role)) {
+      throw HttpError.forbidden(`You can't add someone as ${input.role}.`);
+    }
+    const key = usernameKey(input.username);
+    const clash = await collections
+      .users()
+      .findOne({ $or: [{ email: input.email }, { usernameKey: key }] });
+    if (clash) {
+      throw HttpError.conflict(
+        clash.email === input.email
+          ? 'Someone with this email is already on the team.'
+          : 'That username is taken.',
+      );
+    }
+
+    const now = new Date();
+    const user: UserDoc = {
+      _id: new ObjectId(),
+      name: input.username,
+      email: input.email,
+      username: input.username,
+      usernameKey: key,
+      passwordHash: await hashPassword(input.password),
+      mustChangePassword: true,
+      role: input.role,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+      lastLoginAt: null,
+    };
+    try {
+      await collections.users().insertOne(user);
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw HttpError.conflict('That username or email is already taken.');
+      }
+      throw error;
+    }
+    // They're on the team now, so an older invite for this email no longer applies.
+    await collections.invites().deleteMany({ email: input.email, type: 'invite' });
+    return toUserDto(user);
   },
 
   async invite(actor: UserDoc, input: InviteUserInput) {

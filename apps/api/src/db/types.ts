@@ -22,6 +22,8 @@ export interface UserDoc {
   /** Lower-cased username, used to sign in. */
   usernameKey: string | null;
   passwordHash: string;
+  /** Set when an admin chose the password; cleared once the person replaces it. */
+  mustChangePassword?: boolean;
   role: Role;
   status: UserStatus;
   createdAt: Date;

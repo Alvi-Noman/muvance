@@ -86,8 +86,10 @@ export function useUpdateProfile() {
 }
 
 export function useChangePassword() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: ChangePasswordInput) => api.post<void>('/auth/change-password', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: meKey }),
     onError: () => {},
   });
 }

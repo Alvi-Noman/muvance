@@ -8,6 +8,7 @@ export function toUserDto(user: UserDoc): UserDto {
     name: user.name,
     email: user.email ?? null,
     username: user.username ?? null,
+    mustChangePassword: !!user.mustChangePassword,
     role: user.role,
     status: user.status,
     createdAt: user.createdAt.toISOString(),

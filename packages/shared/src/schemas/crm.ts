@@ -203,6 +203,14 @@ export const inviteUserSchema = z.object({
   role: z.enum(roles),
 });
 
+/** An admin adds someone directly, with a starting password they must replace. */
+export const createUserSchema = z.object({
+  username: usernameSchema,
+  email: z.email('Enter a valid email').transform((e) => e.toLowerCase()),
+  password,
+  role: z.enum(roles),
+});
+
 export const updateUserSchema = z
   .object({
     role: z.enum(roles),
@@ -412,6 +420,7 @@ export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type InviteUserInput = z.infer<typeof inviteUserSchema>;
+export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type CreateLeadInput = z.input<typeof createLeadSchema>;
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
@@ -436,6 +445,8 @@ export interface UserDto {
   /** Accounts created with a username may have no email. */
   email: string | null;
   username: string | null;
+  /** Still on the starting password an admin set: nothing else works until it's replaced. */
+  mustChangePassword: boolean;
   role: Role;
   status: UserStatus;
   createdAt: string;

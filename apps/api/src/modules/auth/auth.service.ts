@@ -64,7 +64,7 @@ export const authService = {
         .users()
         .findOneAndUpdate(
           { _id: invite.userId ?? new ObjectId(), status: 'active' },
-          { $set: { passwordHash, updatedAt: now, lastLoginAt: now } },
+          { $set: { passwordHash, mustChangePassword: false, updatedAt: now, lastLoginAt: now } },
           { returnDocument: 'after' },
         );
       if (!user) throw HttpError.badRequest('This account is no longer active.');
@@ -104,10 +104,16 @@ export const authService = {
     if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
       throw HttpError.badRequest('Your current password is incorrect');
     }
+    if (input.newPassword === input.currentPassword) {
+      throw HttpError.badRequest('Choose a password different from your current one.');
+    }
     const passwordHash = await hashPassword(input.newPassword);
     await collections
       .users()
-      .updateOne({ _id: user._id }, { $set: { passwordHash, updatedAt: new Date() } });
+      .updateOne(
+        { _id: user._id },
+        { $set: { passwordHash, mustChangePassword: false, updatedAt: new Date() } },
+      );
     // Sign out other devices, keep this one.
     await sessionsService.destroyAllForUser(user._id, currentToken);
   },

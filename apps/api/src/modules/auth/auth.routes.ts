@@ -5,7 +5,7 @@ import {
   loginSchema,
   updateProfileSchema,
 } from '@muvance/shared';
-import { currentUser, requireAuth } from '@/middlewares/auth';
+import { currentUser, requireAuth, requireSession } from '@/middlewares/auth';
 import { loginLimiter } from '@/middlewares/rate-limit';
 import { validateBody } from '@/middlewares/validate';
 import { toMeDto } from '@/modules/team/team.mappers';
@@ -24,7 +24,7 @@ authRouter.post('/logout', async (req, res) => {
   res.status(204).end();
 });
 
-authRouter.get('/me', requireAuth, (req, res) => {
+authRouter.get('/me', requireSession, (req, res) => {
   res.json(toMeDto(currentUser(req)));
 });
 
@@ -35,7 +35,7 @@ authRouter.patch('/me', requireAuth, validateBody(updateProfileSchema), async (r
 
 authRouter.post(
   '/change-password',
-  requireAuth,
+  requireSession,
   validateBody(changePasswordSchema),
   async (req, res) => {
     await authService.changePassword(currentUser(req), req.body, req.cookies?.[SESSION_COOKIE]);

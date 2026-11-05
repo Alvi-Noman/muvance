@@ -3,6 +3,7 @@ import type { Permission } from '@muvance/shared';
 import { Navigate, useLocation } from 'react-router';
 import { EmptyState, PageLoader } from '@/components/ui/misc';
 import { useMe } from './auth';
+import { SetPasswordPage } from './SetPasswordPage';
 
 /** Sends signed-out visitors to /login (and back here afterwards). */
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -23,6 +24,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     const next = location.pathname + location.search;
     return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
   }
+  if (me.mustChangePassword) return <SetPasswordPage />;
   return children;
 }
 
