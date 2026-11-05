@@ -1,6 +1,6 @@
 {
   "appId": "com.muvance.admin",
-  "appName": "Muvance",
+  "appName": "Muvance CRM",
   "webDir": "www",
   "server": {
     "url": "https://admin.muvance.com",

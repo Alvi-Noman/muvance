@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Muvance</string>
-    <string name="title_activity_main">Muvance</string>
+    <string name="app_name">Muvance CRM</string>
+    <string name="title_activity_main">Muvance CRM</string>
     <string name="package_name">com.muvance.admin</string>
     <string name="custom_url_scheme">com.muvance.admin</string>
 </resources>
