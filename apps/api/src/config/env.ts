@@ -42,7 +42,10 @@ const envSchema = z.object({
   META_CAPI_TOKEN: z.string().min(1).optional(),
   /** From Events Manager > Test events, to see server events there while testing. Remove after. */
   META_TEST_EVENT_CODE: z.string().min(1).optional(),
-  META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default('v24.0'),
+  META_GRAPH_VERSION: z
+    .string()
+    .regex(/^v\d+\.\d+$/)
+    .default('v24.0'),
 
   TRUST_PROXY: z
     .string()
