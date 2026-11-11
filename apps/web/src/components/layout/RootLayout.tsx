@@ -1,4 +1,5 @@
 import { Outlet, ScrollRestoration } from 'react-router';
+import { MetaPageViews } from './MetaPageViews';
 import { SiteFooter } from './SiteFooter';
 import { SiteHeader } from './SiteHeader';
 
@@ -10,6 +11,7 @@ export function RootLayout() {
         <Outlet />
       </main>
       <SiteFooter />
+      <MetaPageViews />
       {/* Start each new page at the top (or its #section), and restore position on back/forward.
           Fresh page loads all share the key "default", so key those by URL instead. */}
       <ScrollRestoration

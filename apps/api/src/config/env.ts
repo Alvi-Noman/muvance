@@ -34,6 +34,16 @@ const envSchema = z.object({
   /** Firebase service account JSON, base64 encoded. Without it, push notifications are off. */
   FIREBASE_SERVICE_ACCOUNT: z.string().optional(),
 
+  /** Public website URL, reported to Meta as the page an event happened on when none is known. */
+  SITE_URL: z.url().default('http://localhost:5173'),
+
+  /** Meta Pixel + Conversions API. Without both, server-side Meta events are off. */
+  META_PIXEL_ID: z.string().regex(/^\d+$/).optional(),
+  META_CAPI_TOKEN: z.string().min(1).optional(),
+  /** From Events Manager > Test events, to see server events there while testing. Remove after. */
+  META_TEST_EVENT_CODE: z.string().min(1).optional(),
+  META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default('v24.0'),
+
   TRUST_PROXY: z
     .string()
     .default('false')

@@ -46,6 +46,7 @@ services:
       TRUST_PROXY: '2'
       COOKIE_SECURE: 'true'
       ADMIN_URL: https://${ADMIN_DOMAIN}
+      SITE_URL: https://${SITE_DOMAIN}
       CORS_ORIGIN: https://${SITE_DOMAIN},https://${ADMIN_DOMAIN}
     restart: unless-stopped
     logging: *logging

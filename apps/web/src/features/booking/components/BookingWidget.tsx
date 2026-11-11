@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useNavigate } from 'react-router';
 import type { BookingDetails } from '@muvance/shared';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { newEventId, trackBooking, trackEvent } from '@/lib/meta-pixel';
 import { useAvailability, useCreateBooking } from '../hooks/use-booking';
 import { useElementSize } from '../hooks/use-element-size';
 import { THANK_YOU_PATH, type ThankYouState } from '../lib/thank-you';
@@ -107,6 +108,7 @@ export function BookingWidget() {
     setDirection(1);
     setSelectedSlot(slot);
     createBooking.reset();
+    trackEvent('StartBooking');
     if (isDesktop) {
       bringIntoView(cardRef, 50);
     } else {
@@ -130,10 +132,13 @@ export function BookingWidget() {
 
   const submit = (details: BookingDetails) => {
     if (!selectedSlot) return;
+    // Shared by the Pixel and the API's server copy of the Lead, so Meta counts it once.
+    const eventId = newEventId();
     createBooking.mutate(
-      { ...details, startsAt: selectedSlot, timeZone },
+      { ...details, startsAt: selectedSlot, timeZone, eventId },
       {
         onSuccess: (booking) => {
+          trackBooking(eventId);
           void availability.refetch();
           const state: ThankYouState = {
             ...booking,

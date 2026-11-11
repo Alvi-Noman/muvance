@@ -6,6 +6,7 @@ import { dashboardRouter } from '@/modules/dashboard/dashboard.routes';
 import { devicesRouter } from '@/modules/devices/devices.routes';
 import { healthRouter } from '@/modules/health/health.routes';
 import { leadsRouter } from '@/modules/leads/leads.routes';
+import { metaRouter } from '@/modules/meta/meta.routes';
 import { meetingsRouter } from '@/modules/meetings/meetings.routes';
 import { settingsRouter } from '@/modules/settings/settings.routes';
 import { teamRouter } from '@/modules/team/team.routes';
@@ -17,6 +18,7 @@ apiRouter.use('/health', healthRouter);
 apiRouter.use('/availability', availabilityRouter);
 apiRouter.use('/bookings', bookingsRouter);
 apiRouter.use('/auth', authRouter);
+apiRouter.use('/meta', metaRouter);
 
 // Admin (signed-in users; each route also checks role permissions)
 apiRouter.use('/dashboard', requireAuth, dashboardRouter);

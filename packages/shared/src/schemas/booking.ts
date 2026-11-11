@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { metaEventIdSchema } from './tracking';
 
 /**
  * A web address as people type it: optional http(s)://, a domain with a real top-level part
@@ -59,6 +60,8 @@ export const createBookingSchema = bookingDetailsSchema.extend({
   startsAt: z.iso.datetime(),
   /** The visitor's IANA time zone, e.g. "Asia/Dhaka", used for confirmations. */
   timeZone: z.string().trim().min(1).max(64),
+  /** Shared with the website's Pixel "Lead" event, so Meta counts the booking once. */
+  eventId: metaEventIdSchema.optional(),
 });
 
 export const bookingSchema = createBookingSchema.extend({
