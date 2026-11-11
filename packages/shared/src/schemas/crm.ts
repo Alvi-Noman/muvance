@@ -398,22 +398,72 @@ export const meetingListQuerySchema = z.object({
 /* Settings                                                            */
 /* ------------------------------------------------------------------ */
 
-export const availabilitySettingsSchema = z
+/** A time of day in minutes after midnight (host time), on a 15-minute grid: 690 = 11:30 AM. */
+const minuteOfDay = z.number().int().min(0).max(1425).multipleOf(15);
+
+/** One weekday's booking hours: open or closed, and when the first and last calls start. */
+export const weeklyDaySchema = z
   .object({
-    /** 0 = Sunday … 6 = Saturday. */
-    workingDays: z.array(z.number().int().min(0).max(6)).min(1, 'Pick at least one day'),
-    /** Hour of the first and last call start, 0–23 (host time). */
-    firstStartHour: z.number().int().min(0).max(23),
-    lastStartHour: z.number().int().min(0).max(23),
-    slotIntervalMinutes: z.union([z.literal(30), z.literal(60)]),
-    durationMinutes: z.number().int().min(15).max(120),
-    daysAhead: z.number().int().min(1).max(90),
-    minNoticeHours: z.number().int().min(0).max(72),
+    open: z.boolean(),
+    firstStart: minuteOfDay,
+    lastStart: minuteOfDay,
   })
-  .refine((v) => v.lastStartHour >= v.firstStartHour, {
-    message: 'The last start must be after the first',
-    path: ['lastStartHour'],
+  .refine((d) => !d.open || d.lastStart >= d.firstStart, {
+    message: 'The last call must start after the first',
+    path: ['lastStart'],
   });
+
+export const availabilitySettingsSchema = z.object({
+  /** Exactly 7 entries, one per weekday: index 0 = Sunday … 6 = Saturday. */
+  weekly: z
+    .array(weeklyDaySchema)
+    .length(7)
+    .refine((week) => week.some((d) => d.open), 'Open at least one day'),
+  slotIntervalMinutes: z.union([z.literal(30), z.literal(60)]),
+  durationMinutes: z.number().int().min(15).max(120),
+  daysAhead: z.number().int().min(1).max(90),
+  minNoticeHours: z.number().int().min(0).max(72),
+});
+
+/**
+ * Time nobody can book: one date or a range of dates, either whole days or the same window
+ * on each of those days (e.g. 2:00–4:00 PM). Dates and times are in host time.
+ */
+export const blockedTimeInputSchema = z
+  .object({
+    startDate: z.iso.date(),
+    endDate: z.iso.date(),
+    /** Both null for whole days. `to` is when the block ends (1440 = midnight). */
+    from: minuteOfDay.nullable(),
+    to: z.number().int().min(15).max(1440).multipleOf(15).nullable(),
+    note: z.string().trim().max(200).default(''),
+  })
+  .refine((b) => b.endDate >= b.startDate, {
+    message: 'The end date must be on or after the start date',
+    path: ['endDate'],
+  })
+  .refine((b) => Date.parse(b.endDate) - Date.parse(b.startDate) <= 366 * 86_400_000, {
+    message: 'Block at most a year at a time',
+    path: ['endDate'],
+  })
+  .refine((b) => (b.from === null) === (b.to === null), {
+    message: 'Pick both a start and an end time, or block the whole day',
+    path: ['to'],
+  })
+  .refine((b) => b.from === null || b.to === null || b.to > b.from, {
+    message: 'The end time must be after the start time',
+    path: ['to'],
+  });
+
+export const blockedTimeSchema = z.object({
+  id: z.string(),
+  startDate: z.string(),
+  endDate: z.string(),
+  from: z.number().nullable(),
+  to: z.number().nullable(),
+  note: z.string(),
+  createdAt: z.string(),
+});
 
 /* ------------------------------------------------------------------ */
 /* Inferred input types                                                */
@@ -436,6 +486,9 @@ export type ScheduleMeetingInput = z.input<typeof scheduleMeetingSchema>;
 export type DiscoveryInput = z.infer<typeof discoverySchema>;
 export type OfferInput = z.infer<typeof offerSchema>;
 export type AvailabilitySettings = z.infer<typeof availabilitySettingsSchema>;
+export type WeeklyDay = z.infer<typeof weeklyDaySchema>;
+export type BlockedTimeInput = z.input<typeof blockedTimeInputSchema>;
+export type BlockedTime = z.infer<typeof blockedTimeSchema>;
 
 /* ------------------------------------------------------------------ */
 /* API response shapes                                                 */

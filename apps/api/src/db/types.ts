@@ -121,6 +121,18 @@ export interface ActivityDoc {
   createdAt: Date;
 }
 
+/** Time nobody can book (see blockedTimeInputSchema). Dates and minutes are in host time. */
+export interface BlockedTimeDoc {
+  _id: ObjectId;
+  startDate: string;
+  endDate: string;
+  from: number | null;
+  to: number | null;
+  note: string;
+  createdAt: Date;
+  createdBy: ObjectId | null;
+}
+
 export interface SettingsDoc {
   _id: 'booking';
   availability: AvailabilitySettings;

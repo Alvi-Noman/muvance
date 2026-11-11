@@ -1,16 +1,15 @@
 import { useState, type FormEvent } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { roleLabels, type AvailabilitySettings } from '@muvance/shared';
+import { roleLabels } from '@muvance/shared';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
-import { Field, Input, Select } from '@/components/ui/Field';
-import { PageHeader, Spinner } from '@/components/ui/misc';
+import { Field, Input } from '@/components/ui/Field';
+import { PageHeader } from '@/components/ui/misc';
 import { Can } from '@/features/auth/RequireAuth';
 import { useChangePassword, useCurrentUser, useUpdateProfile } from '@/features/auth/auth';
-import { api, errorMessage } from '@/lib/api-client';
-import { cn } from '@/lib/cn';
-import { formatHour } from '@/lib/format';
+import { errorMessage } from '@/lib/api-client';
+import { BlockedTimesCard } from './BlockedTimesCard';
+import { BookingHoursCard } from './BookingHoursCard';
 
 export function SettingsPage() {
   return (
@@ -22,7 +21,10 @@ export function SettingsPage() {
           <PasswordCard />
         </div>
         <Can permission="settings:manage">
-          <AvailabilityCard />
+          <div className="space-y-6">
+            <BookingHoursCard />
+            <BlockedTimesCard />
+          </div>
         </Can>
       </div>
     </>
@@ -143,206 +145,6 @@ function PasswordCard() {
         <div className="flex justify-end">
           <Button type="submit" loading={change.isPending}>
             Change password
-          </Button>
-        </div>
-      </form>
-    </Card>
-  );
-}
-
-type AvailabilityResponse = { availability: AvailabilitySettings; hostTimeZone: string };
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const HOURS = Array.from({ length: 24 }, (_, h) => h);
-
-function AvailabilityCard() {
-  const { data } = useQuery({
-    queryKey: ['settings', 'availability'],
-    queryFn: () => api.get<AvailabilityResponse>('/settings/availability'),
-  });
-
-  if (!data) {
-    return (
-      <Card className="grid h-64 place-items-center">
-        <Spinner />
-      </Card>
-    );
-  }
-  // Keyed by the saved values so the form starts fresh after each save.
-  return <AvailabilityForm key={JSON.stringify(data.availability)} data={data} />;
-}
-
-function AvailabilityForm({ data }: { data: AvailabilityResponse }) {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState<AvailabilitySettings>(data.availability);
-
-  const save = useMutation({
-    mutationFn: (input: AvailabilitySettings) =>
-      api.put<AvailabilityResponse>('/settings/availability', input),
-    onSuccess: (res) => {
-      queryClient.setQueryData(['settings', 'availability'], res);
-      toast.success('Booking hours saved. The website uses them right away.');
-    },
-  });
-
-  const set = <K extends keyof AvailabilitySettings>(key: K, value: AvailabilitySettings[K]) =>
-    setForm((f) => ({ ...f, [key]: value }));
-  const slotsPerDay =
-    form.lastStartHour >= form.firstStartHour
-      ? Math.floor(((form.lastStartHour - form.firstStartHour) * 60) / form.slotIntervalMinutes) + 1
-      : 0;
-  const dirty = JSON.stringify(form) !== JSON.stringify(data.availability);
-
-  return (
-    <Card>
-      <CardHeader
-        title="Booking hours"
-        description={`When people can book calls on the website (${data.hostTimeZone} time).`}
-      />
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          save.mutate(form);
-        }}
-        className="space-y-5 p-5"
-      >
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium text-neutral-800">Days</legend>
-          <div className="flex flex-wrap gap-1.5">
-            {DAYS.map((day, i) => {
-              const on = form.workingDays.includes(i);
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() =>
-                    set(
-                      'workingDays',
-                      on ? form.workingDays.filter((d) => d !== i) : [...form.workingDays, i],
-                    )
-                  }
-                  className={cn(
-                    'h-9 w-12 rounded-lg text-sm font-medium transition-colors',
-                    on
-                      ? 'bg-neutral-950 text-white'
-                      : 'border border-black/10 bg-white text-neutral-500 hover:border-black/30',
-                  )}
-                >
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="First call">
-            {(p) => (
-              <Select
-                {...p}
-                value={form.firstStartHour}
-                onChange={(e) => set('firstStartHour', Number(e.target.value))}
-              >
-                {HOURS.map((h) => (
-                  <option key={h} value={h}>
-                    {formatHour(h)}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
-          <Field
-            label="Last call"
-            error={
-              form.lastStartHour < form.firstStartHour ? 'Must be after the first call' : undefined
-            }
-          >
-            {(p) => (
-              <Select
-                {...p}
-                value={form.lastStartHour}
-                onChange={(e) => set('lastStartHour', Number(e.target.value))}
-              >
-                {HOURS.map((h) => (
-                  <option key={h} value={h}>
-                    {formatHour(h)}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
-          <Field label="Start times">
-            {(p) => (
-              <Select
-                {...p}
-                value={form.slotIntervalMinutes}
-                onChange={(e) => set('slotIntervalMinutes', Number(e.target.value) as 30 | 60)}
-              >
-                <option value={60}>On the hour</option>
-                <option value={30}>Every 30 minutes</option>
-              </Select>
-            )}
-          </Field>
-          <Field label="Call length (minutes)">
-            {(p) => (
-              <Input
-                {...p}
-                type="number"
-                min={15}
-                max={120}
-                step={5}
-                value={form.durationMinutes}
-                onChange={(e) => set('durationMinutes', Number(e.target.value))}
-              />
-            )}
-          </Field>
-          <Field label="Book up to (days ahead)">
-            {(p) => (
-              <Input
-                {...p}
-                type="number"
-                min={1}
-                max={90}
-                value={form.daysAhead}
-                onChange={(e) => set('daysAhead', Number(e.target.value))}
-              />
-            )}
-          </Field>
-          <Field label="Minimum notice (hours)">
-            {(p) => (
-              <Input
-                {...p}
-                type="number"
-                min={0}
-                max={72}
-                value={form.minNoticeHours}
-                onChange={(e) => set('minNoticeHours', Number(e.target.value))}
-              />
-            )}
-          </Field>
-        </div>
-
-        <p className="rounded-xl bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
-          {slotsPerDay} {slotsPerDay === 1 ? 'call' : 'calls'} a day, from{' '}
-          {formatHour(form.firstStartHour)} to {formatHour(form.lastStartHour)} on{' '}
-          {form.workingDays.length} {form.workingDays.length === 1 ? 'day' : 'days'} a week.
-          Already-booked calls are never affected.
-        </p>
-
-        <div className="flex justify-end gap-2">
-          {dirty && (
-            <Button variant="ghost" onClick={() => setForm(data.availability)}>
-              Discard
-            </Button>
-          )}
-          <Button
-            type="submit"
-            disabled={
-              !dirty || !form.workingDays.length || form.lastStartHour < form.firstStartHour
-            }
-            loading={save.isPending}
-          >
-            Save booking hours
           </Button>
         </div>
       </form>

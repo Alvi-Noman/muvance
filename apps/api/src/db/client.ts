@@ -3,6 +3,7 @@ import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import type {
   ActivityDoc,
+  BlockedTimeDoc,
   DeviceDoc,
   InviteDoc,
   LeadDoc,
@@ -65,10 +66,11 @@ export const collections = {
   meetings: () => getDb().collection<MeetingDoc>('meetings'),
   activities: () => getDb().collection<ActivityDoc>('activities'),
   settings: () => getDb().collection<SettingsDoc>('settings'),
+  blockedTimes: () => getDb().collection<BlockedTimeDoc>('blockedTimes'),
 };
 
 /** Brings data from earlier versions up to date. Safe to run on every start. */
-async function migrate(database: Db) {
+export async function migrate(database: Db) {
   const leads = database.collection('leads');
   const renamed: Record<string, string> = {
     new: 'discovery_booked',
@@ -113,6 +115,26 @@ async function migrate(database: Db) {
     { $unset: { 'discovery.roas': '' } },
   );
 
+  // Booking hours: one set of hours for all working days became separate hours per weekday.
+  const settings = database.collection<{ _id: string; availability: object }>('settings');
+  const oldHours = await settings.findOne({
+    _id: 'booking',
+    'availability.workingDays': { $exists: true },
+  });
+  if (oldHours) {
+    const { workingDays, firstStartHour, lastStartHour, ...rest } = oldHours.availability as {
+      workingDays: number[];
+      firstStartHour: number;
+      lastStartHour: number;
+    };
+    const weekly = [0, 1, 2, 3, 4, 5, 6].map((day) => ({
+      open: workingDays.includes(day),
+      firstStart: firstStartHour * 60,
+      lastStart: lastStartHour * 60,
+    }));
+    await settings.updateOne({ _id: 'booking' }, { $set: { availability: { ...rest, weekly } } });
+  }
+
   // Usernames: the old full unique index on email is replaced by a partial one.
   const users = database.collection('users');
   await users.updateMany(
@@ -151,6 +173,7 @@ async function ensureIndexes(database: Db) {
     database.collection('invites').createIndex({ tokenHash: 1 }, { unique: true }),
     database.collection('invites').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database.collection('leads').createIndex({ phoneKey: 1 }),
+    database.collection('blockedTimes').createIndex({ endDate: 1 }),
     database.collection('leads').createIndex({ stage: 1, createdAt: -1 }),
     database.collection('leads').createIndex({ assigneeId: 1 }),
     database.collection('leads').createIndex({ followUpAt: 1 }),

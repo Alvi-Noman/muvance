@@ -13,30 +13,35 @@ import {
   phoneKey,
   refreshNextMeeting,
 } from '@/modules/leads/leads.helpers';
-import { settingsService } from '@/modules/settings/settings.service';
+import { overlapsAny, settingsService, type Window } from '@/modules/settings/settings.service';
 import { HttpError } from '@/utils/http-error';
 
 const MINUTE = 60_000;
 
-/** Every slot start (UTC ISO) allowed by the rules, from now until `daysAhead`. */
-function candidateSlots(rules: AvailabilitySettings, now = new Date()) {
+/**
+ * Every slot start (UTC ISO) allowed by the weekly hours, from now until `daysAhead`,
+ * leaving out any slot that overlaps a blocked time.
+ */
+function candidateSlots(rules: AvailabilitySettings, blocked: Window[], now = new Date()) {
   const offset = hostTimeZone.utcOffsetMinutes * MINUTE;
   const earliest = now.getTime() + rules.minNoticeHours * 60 * MINUTE;
+  const length = rules.durationMinutes * MINUTE;
   // "Today" in the host time zone, as a UTC-midnight date we can step through by day.
   const hostToday = new Date(now.getTime() + offset);
-  const first = rules.firstStartHour * 60;
-  const last = rules.lastStartHour * 60;
   const slots: string[] = [];
 
   for (let day = 0; day <= rules.daysAhead; day++) {
     const date = new Date(
       Date.UTC(hostToday.getUTCFullYear(), hostToday.getUTCMonth(), hostToday.getUTCDate() + day),
     );
-    if (!rules.workingDays.includes(date.getUTCDay())) continue;
-    for (let m = first; m <= last; m += rules.slotIntervalMinutes) {
+    const hours = rules.weekly[date.getUTCDay()];
+    if (!hours?.open) continue;
+    for (let m = hours.firstStart; m <= hours.lastStart; m += rules.slotIntervalMinutes) {
       // Host wall-clock time -> UTC instant.
       const start = date.getTime() + m * MINUTE - offset;
-      if (start >= earliest) slots.push(new Date(start).toISOString());
+      if (start >= earliest && !overlapsAny(start, start + length, blocked)) {
+        slots.push(new Date(start).toISOString());
+      }
     }
   }
   return slots;
@@ -44,7 +49,7 @@ function candidateSlots(rules: AvailabilitySettings, now = new Date()) {
 
 /** Splits candidate slots by whether they overlap a scheduled meeting (including ones you set). */
 async function slotsByStatus(rules: AvailabilitySettings) {
-  const candidates = candidateSlots(rules);
+  const candidates = candidateSlots(rules, await settingsService.blockedWindows());
   if (!candidates.length) return { slots: [], bookedSlots: [] };
   const windowStart = new Date(candidates[0]!);
   const windowEnd = new Date(Date.parse(candidates.at(-1)!) + rules.durationMinutes * MINUTE);
@@ -86,7 +91,9 @@ export const bookingsService = {
     const startsAt = new Date(input.startsAt);
     const endsAt = new Date(startsAt.getTime() + rules.durationMinutes * MINUTE);
     if (
-      !candidateSlots(rules).includes(startsAt.toISOString()) ||
+      !candidateSlots(rules, await settingsService.blockedWindows()).includes(
+        startsAt.toISOString(),
+      ) ||
       (await overlapsScheduledMeeting(startsAt, endsAt))
     ) {
       throw HttpError.conflict('Sorry, that time is no longer available. Please pick another.');

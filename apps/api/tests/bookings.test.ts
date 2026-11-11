@@ -14,10 +14,12 @@ describe('public booking', () => {
     expect([...slots].sort()).toEqual(slots);
     for (const slot of slots) {
       const host = hostTime(slot);
-      expect(defaultAvailability.workingDays).toContain(host.getUTCDay());
+      const day = defaultAvailability.weekly[host.getUTCDay()]!;
+      const minute = host.getUTCHours() * 60 + host.getUTCMinutes();
+      expect(day.open).toBe(true);
       expect(host.getUTCMinutes()).toBe(0);
-      expect(host.getUTCHours()).toBeGreaterThanOrEqual(defaultAvailability.firstStartHour);
-      expect(host.getUTCHours()).toBeLessThanOrEqual(defaultAvailability.lastStartHour);
+      expect(minute).toBeGreaterThanOrEqual(day.firstStart);
+      expect(minute).toBeLessThanOrEqual(day.lastStart);
     }
   });
 
@@ -193,11 +195,12 @@ describe('public booking', () => {
 
   it('follows availability settings changed by an admin', async () => {
     const { agent } = await signedIn('admin');
+    const closed = { open: false, firstStart: 600, lastStart: 600 };
     const res = await agent.put('/api/settings/availability').send({
       ...defaultAvailability,
-      workingDays: [5],
-      firstStartHour: 15,
-      lastStartHour: 15,
+      weekly: [0, 1, 2, 3, 4, 5, 6].map((d) =>
+        d === 5 ? { open: true, firstStart: 15 * 60, lastStart: 15 * 60 } : closed,
+      ),
     });
     expect(res.status).toBe(200);
     const slots = await openSlots();
