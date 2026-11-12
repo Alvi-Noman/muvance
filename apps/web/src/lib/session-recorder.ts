@@ -4,7 +4,7 @@ import { env } from '@/config/env';
 /**
  * Records visits (clicks, scrolling, page changes, mouse movement) so the team can replay
  * them in the admin, including what's typed into the form. A visit is only uploaded once the visitor
- * interacts or stays a while, so quick bounces never leave the browser.
+ * interacts or stays a while; quick bounces are only counted, never uploaded.
  *
  * Runs on the live site, or locally with VITE_RECORD_SESSIONS=true.
  */
@@ -175,6 +175,10 @@ export async function startRecording() {
     collectFonts: false,
     sampling: { mousemove: 50, scroll: 150, media: 800, input: 'last' },
   });
+
+  // Count the visit straight away (for the dashboard's visitor chart). The recording
+  // itself is only uploaded once they interact or stay a while.
+  void register();
 
   // The page they're on now; later page changes are marked as they happen.
   markRecording('page', { path: window.location.pathname });

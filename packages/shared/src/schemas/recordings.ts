@@ -67,3 +67,21 @@ export type RecordingListQuery = Partial<{
   minSeconds: number;
   leadId: string;
 }>;
+
+/** Website visits by hour of the day (host time), for the dashboard. */
+export interface VisitorsByHourDto {
+  days: number;
+  timeZone: string;
+  total: number;
+  /** 24 counts: index 0 = midnight–1 AM … 23 = 11 PM–midnight. */
+  byHour: number[];
+  /** The 3-hour stretch with the most visits (start hour, may wrap past midnight). */
+  busiest: { startHour: number; count: number } | null;
+}
+
+export const visitorsQuerySchema = z.object({
+  days: z.coerce
+    .number()
+    .pipe(z.union([z.literal(7), z.literal(30)]))
+    .default(7),
+});

@@ -5,7 +5,11 @@ import {
   type DashboardDto,
   type LeadStage,
   type LostReason,
+  type VisitorsByHourDto,
+  visitorsQuerySchema,
 } from '@muvance/shared';
+import { hostTimeZone } from '@/config/booking';
+import { validateQuery } from '@/middlewares/validate';
 import { collections } from '@/db/client';
 import { requirePermission } from '@/middlewares/auth';
 import { toActivityDtos, toMeetingDtos } from '@/modules/leads/leads.helpers';
@@ -106,3 +110,38 @@ dashboardRouter.get('/', requirePermission('leads:read'), async (_req, res) => {
   };
   res.json(body);
 });
+
+/** Visits to the website by hour of the day (host time), over the last 7 or 30 days. */
+dashboardRouter.get(
+  '/visitors',
+  requirePermission('leads:read'),
+  validateQuery(visitorsQuerySchema),
+  async (_req, res) => {
+    const { days } = res.locals.query as { days: 7 | 30 };
+    const since = new Date(Date.now() - days * 24 * 60 * 60_000);
+    const rows = await collections
+      .recordings()
+      .aggregate<{ _id: number; count: number }>([
+        { $match: { startedAt: { $gte: since } } },
+        {
+          $group: {
+            _id: { $hour: { date: '$startedAt', timezone: hostTimeZone.name } },
+            count: { $sum: 1 },
+          },
+        },
+      ])
+      .toArray();
+
+    const byHour = Array.from({ length: 24 }, (_, h) => rows.find((r) => r._id === h)?.count ?? 0);
+    const total = byHour.reduce((sum, n) => sum + n, 0);
+    // Busiest 3 hours in a row, wrapping past midnight (e.g. 11 PM–2 AM).
+    let busiest: VisitorsByHourDto['busiest'] = null;
+    for (let start = 0; start < 24 && total; start++) {
+      const count = byHour[start]! + byHour[(start + 1) % 24]! + byHour[(start + 2) % 24]!;
+      if (!busiest || count > busiest.count) busiest = { startHour: start, count };
+    }
+
+    const body: VisitorsByHourDto = { days, timeZone: hostTimeZone.name, total, byHour, busiest };
+    res.json(body);
+  },
+);

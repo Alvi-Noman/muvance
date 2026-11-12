@@ -307,14 +307,11 @@ export const recordingsService = {
   },
 
   /**
-   * Housekeeping: drops visits that never sent anything, and keeps recordings that didn't
-   * become a lead under the storage cap by deleting the oldest first.
+   * Housekeeping: keeps recordings that didn't become a lead under the storage cap by
+   * deleting the oldest first. Visits with nothing recorded are kept (they're tiny and count
+   * towards the dashboard's visitor chart) until they expire.
    */
   async cleanUp() {
-    const empty = await collections
-      .recordings()
-      .deleteMany({ chunkCount: 0, startedAt: { $lt: new Date(Date.now() - 6 * 3_600_000) } });
-
     const cap = env.RECORDINGS_MAX_MB * 1024 * 1024;
     const [usage] = await collections
       .recordings()
@@ -328,7 +325,7 @@ export const recordingsService = {
     if (over > 0) {
       const oldest = collections
         .recordings()
-        .find({ leadId: null }, { projection: { bytes: 1 } })
+        .find({ leadId: null, bytes: { $gt: 0 } }, { projection: { bytes: 1 } })
         .sort({ startedAt: 1 });
       for await (const rec of oldest) {
         if (over <= 0) break;
@@ -337,8 +334,8 @@ export const recordingsService = {
         removed++;
       }
     }
-    if (empty.deletedCount || removed) {
-      logger.info({ empty: empty.deletedCount, removed }, 'Cleaned up session recordings');
+    if (removed) {
+      logger.info({ removed }, 'Cleaned up session recordings');
     }
   },
 };

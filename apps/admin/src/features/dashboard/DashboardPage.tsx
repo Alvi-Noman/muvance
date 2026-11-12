@@ -26,6 +26,7 @@ import { MeetingTypeBadge } from '@/features/leads/stage-badges';
 import { stageStyles } from '@/features/leads/stages';
 import { cn } from '@/lib/cn';
 import { formatDay, formatNumber, formatRate, formatRelative, formatTime } from '@/lib/format';
+import { VisitorsChart } from './VisitorsChart';
 
 function greeting() {
   const hour = new Date().getHours();
@@ -170,6 +171,10 @@ export function DashboardPage() {
 
       <div className="mt-3">
         <Funnel totals={totals} />
+      </div>
+
+      <div className="mt-6">
+        <VisitorsChart />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
