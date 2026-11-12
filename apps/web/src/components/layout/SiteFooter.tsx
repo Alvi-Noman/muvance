@@ -1,16 +1,18 @@
 import type { ReactNode } from 'react';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, CalendarCheck } from 'lucide-react';
 import { Link } from 'react-router';
 import { Logo } from '@/components/brand/Logo';
+import { buttonStyles } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { siteConfig } from '@/config/site';
+import { cn } from '@/lib/cn';
 import { SectionLink } from './SectionLink';
 
 export function SiteFooter() {
   return (
     <footer className="overflow-hidden pt-24">
       <Container>
-        <div className="grid gap-12 border-b border-black/10 pb-16 md:grid-cols-[2fr_1fr_1fr]">
+        <div className="grid gap-12 border-b border-black/10 pb-16 md:grid-cols-2 lg:grid-cols-[1.2fr_0.8fr_1.4fr]">
           <div>
             <Logo />
             <p className="mt-3 max-w-xs text-sm text-neutral-500">{siteConfig.tagline}</p>
@@ -24,9 +26,7 @@ export function SiteFooter() {
             ))}
           </FooterColumn>
 
-          <FooterColumn title="Contact">
-            <FooterLink href={siteConfig.bookingHref}>Book a call</FooterLink>
-          </FooterColumn>
+          <FooterContact />
         </div>
 
         <div className="flex flex-col gap-2 py-8 text-sm text-neutral-500 sm:flex-row sm:justify-between">
@@ -45,6 +45,56 @@ export function SiteFooter() {
         {siteConfig.name}
       </p>
     </footer>
+  );
+}
+
+const CONTACT_STEPS = [
+  'Pick a time that suits you',
+  'We call you on your number',
+  'You leave with a clear plan',
+];
+
+/**
+ * Where people look for a phone number. There isn't one on purpose: every conversation
+ * starts with a booked call, so this says so and points to booking instead.
+ */
+function FooterContact() {
+  return (
+    <section
+      aria-labelledby="footer-contact"
+      className="rounded-3xl border border-black/5 bg-neutral-50 p-6 sm:p-7 md:col-span-2 lg:col-span-1"
+    >
+      <h2 id="footer-contact" className="text-xs tracking-[0.14em] text-neutral-400 uppercase">
+        Contact
+      </h2>
+      <p className="mt-4 flex items-center gap-2 text-lg font-medium text-neutral-950">
+        <CalendarCheck className="size-5 shrink-0" aria-hidden />
+        By appointment only
+      </p>
+      <p className="mt-2 max-w-md text-sm text-pretty text-neutral-500">
+        We speak with business owners on booked calls only, so we can study your business first and
+        give every call our full attention.
+      </p>
+
+      <ol className="mt-5 space-y-2.5 text-sm text-neutral-700">
+        {CONTACT_STEPS.map((step, i) => (
+          <li key={step} className="flex items-center gap-3">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white text-xs font-medium text-neutral-950 tabular-nums ring-1 ring-black/10">
+              {i + 1}
+            </span>
+            {step}
+          </li>
+        ))}
+      </ol>
+
+      <Link to={siteConfig.bookingHref} className={cn(buttonStyles(), 'mt-6')}>
+        Book a call
+        <ArrowRight
+          className="size-4 transition-transform group-hover:translate-x-0.5"
+          aria-hidden
+        />
+      </Link>
+    </section>
   );
 }
 
