@@ -3,6 +3,7 @@ import { env } from './config/env';
 import { closeDb, connectDb } from './db/client';
 import { seedDevOwner } from './db/seed-dev';
 import { logger } from './lib/logger';
+import { recordingsService } from './modules/recordings/recordings.service';
 
 async function main() {
   await connectDb();
@@ -10,6 +11,14 @@ async function main() {
   const server = createApp().listen(env.PORT, () => {
     logger.info(`API listening on http://localhost:${env.PORT}`);
   });
+
+  // Hourly housekeeping for session recordings (storage cap, abandoned visits).
+  const cleanUp = () =>
+    void recordingsService
+      .cleanUp()
+      .catch((error: unknown) => logger.warn({ err: error }, 'Recording clean-up failed'));
+  setTimeout(cleanUp, 60_000).unref();
+  setInterval(cleanUp, 60 * 60_000).unref();
 
   const shutdown = (signal: string) => {
     logger.info(`${signal} received, shutting down`);

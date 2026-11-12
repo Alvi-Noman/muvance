@@ -72,6 +72,7 @@ import { ScheduleMeetingModal } from './ScheduleMeetingModal';
 import { MeetingStatusBadge, MeetingTypeBadge } from './stage-badges';
 import { stageOptions, stageStyles } from './stages';
 import { fromNumber, toNumber, useSyncedForm } from './use-synced-form';
+import { WebsiteVisitsCard } from '@/features/recordings/WebsiteVisitsCard';
 
 type LoseState = LostReason | 'pick' | 'disqualify' | null;
 
@@ -124,6 +125,7 @@ export function LeadDetailPage() {
         <div className="space-y-6">
           <MeetingsCard meetings={meetings} onSchedule={() => setSchedule('proposal')} />
           <ContactCard lead={lead} />
+          <WebsiteVisitsCard leadId={lead.id} />
         </div>
       </div>
 

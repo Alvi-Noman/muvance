@@ -1,4 +1,4 @@
-import type { ObjectId } from 'mongodb';
+import type { Binary, ObjectId } from 'mongodb';
 import type {
   ActivityType,
   AvailabilitySettings,
@@ -8,6 +8,8 @@ import type {
   MeetingStatus,
   MeetingType,
   OfferDto,
+  RecordingDto,
+  RecordingSource,
   Role,
   UserStatus,
 } from '@muvance/shared';
@@ -119,6 +121,62 @@ export interface ActivityDoc {
   /** Null for system events (e.g. a booking from the website). */
   actorId: ObjectId | null;
   createdAt: Date;
+}
+
+/** A recorded website visit. Its events are stored in pieces (RecordingChunkDoc). */
+export interface RecordingDoc {
+  /** Made by the visitor's browser. */
+  _id: string;
+  visitorId: string;
+  /** Which visit this is for the visitor: 1 for their first. */
+  visitNumber: number;
+  leadId: ObjectId | null;
+  /** True for the visit in which they booked a call. */
+  booked: boolean;
+  startedAt: Date;
+  lastEventAt: Date;
+  /** Browser timestamps (ms) of the first and last recorded event. */
+  firstTs?: number;
+  lastTs?: number;
+  durationMs: number;
+  pages: string[];
+  landingUrl: string;
+  referrer: string;
+  source: RecordingSource;
+  device: RecordingDto['device'];
+  chunkCount: number;
+  bytes: number;
+  expiresAt: Date;
+}
+
+export interface RecordingChunkDoc {
+  _id: ObjectId;
+  recordingId: string;
+  seq: number;
+  encoding: 'gzip' | 'json';
+  data: Binary;
+  expiresAt: Date;
+}
+
+/** A booking form someone started filling in (with a valid phone) but hadn't sent yet. */
+export interface UnfinishedBookingDoc {
+  _id: string;
+  phoneKey: string;
+  name: string;
+  phone: string;
+  businessName: string;
+  website: string;
+  monthlySales: string;
+  message: string;
+  startsAt: Date | null;
+  timeZone: string | null;
+  visitorId: string | null;
+  recordingId: string | null;
+  /** open: still on the list. booked: they booked after all. added: the team made it a lead. */
+  status: 'open' | 'booked' | 'added';
+  leadId: ObjectId | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /** Time nobody can book (see blockedTimeInputSchema). Dates and minutes are in host time. */

@@ -178,9 +178,12 @@ export const bookingsService = {
       startsAt,
     });
     return {
-      id: meeting._id.toHexString(),
-      startsAt: meeting.startsAt.toISOString(),
-      endsAt: meeting.endsAt.toISOString(),
+      leadId,
+      booking: {
+        id: meeting._id.toHexString(),
+        startsAt: meeting.startsAt.toISOString(),
+        endsAt: meeting.endsAt.toISOString(),
+      },
     };
   },
 };

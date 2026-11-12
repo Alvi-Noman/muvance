@@ -47,6 +47,12 @@ const envSchema = z.object({
     .regex(/^v\d+\.\d+$/)
     .default('v24.0'),
 
+  /** Session recordings: days to keep visits that didn't become a lead, and leads' visits. */
+  RECORDING_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  RECORDING_LEAD_RETENTION_DAYS: z.coerce.number().int().min(1).max(1825).default(365),
+  /** Storage cap for recordings that didn't become a lead; the oldest are deleted first. */
+  RECORDINGS_MAX_MB: z.coerce.number().int().min(10).max(100_000).default(300),
+
   TRUST_PROXY: z
     .string()
     .default('false')

@@ -49,6 +49,27 @@ export const router = createBrowserRouter([
           import('@/features/meetings/MeetingsPage').then((m) => ({ Component: m.MeetingsPage })),
       },
       {
+        path: 'unfinished',
+        lazy: () =>
+          import('@/features/unfinished/UnfinishedBookingsPage').then((m) => ({
+            Component: m.UnfinishedBookingsPage,
+          })),
+      },
+      {
+        path: 'recordings',
+        lazy: () =>
+          import('@/features/recordings/RecordingsPage').then((m) => ({
+            Component: m.RecordingsPage,
+          })),
+      },
+      {
+        path: 'recordings/:id',
+        lazy: () =>
+          import('@/features/recordings/RecordingPage').then((m) => ({
+            Component: m.RecordingPage,
+          })),
+      },
+      {
         path: 'team',
         lazy: () =>
           import('@/features/team/TeamPage').then((m) => ({

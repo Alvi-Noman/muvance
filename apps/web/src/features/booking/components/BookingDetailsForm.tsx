@@ -64,6 +64,8 @@ type BookingDetailsFormProps = {
   error: Error | null;
   /** Called when the chosen time was taken by someone else in the meantime. */
   onSlotTaken: () => void;
+  /** Called with everything typed so far, on every change. */
+  onChange?: (values: Record<string, string>) => void;
 };
 
 export function BookingDetailsForm({
@@ -71,6 +73,7 @@ export function BookingDetailsForm({
   isPending,
   error,
   onSlotTaken,
+  onChange,
 }: BookingDetailsFormProps) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const slotTaken = error instanceof ApiClientError && error.status === 409;
@@ -102,7 +105,18 @@ export function BookingDetailsForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+    <form
+      onSubmit={handleSubmit}
+      onChange={(event) =>
+        onChange?.(
+          Object.fromEntries(
+            [...new FormData(event.currentTarget)].map(([key, value]) => [key, String(value)]),
+          ),
+        )
+      }
+      noValidate
+      className="space-y-5"
+    >
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Your details</h2>
         <p className="mt-1 text-sm text-neutral-400">

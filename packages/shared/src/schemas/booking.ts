@@ -62,6 +62,10 @@ export const createBookingSchema = bookingDetailsSchema.extend({
   timeZone: z.string().trim().min(1).max(64),
   /** Shared with the website's Pixel "Lead" event, so Meta counts the booking once. */
   eventId: metaEventIdSchema.optional(),
+  /** The visitor's id from the website's session recorder, to link their recorded visits. */
+  visitorId: z.uuid().optional(),
+  /** The recorded visit in which they booked. */
+  recordingId: z.uuid().optional(),
 });
 
 export const bookingSchema = createBookingSchema.extend({

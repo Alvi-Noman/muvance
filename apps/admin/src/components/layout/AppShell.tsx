@@ -2,12 +2,14 @@ import { useState } from 'react';
 import {
   CalendarDays,
   Columns3,
+  Hourglass,
   LayoutDashboard,
   LogOut,
   Menu,
   Settings,
   UserCog,
   Users,
+  Video,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -33,7 +35,9 @@ const nav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/leads', label: 'Leads', icon: Users },
   { to: '/pipeline', label: 'Pipeline', icon: Columns3 },
+  { to: '/unfinished', label: 'Unfinished', icon: Hourglass },
   { to: '/meetings', label: 'Meetings', icon: CalendarDays },
+  { to: '/recordings', label: 'Recordings', icon: Video },
   { to: '/team', label: 'Team', icon: UserCog, permission: 'team:manage' },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];

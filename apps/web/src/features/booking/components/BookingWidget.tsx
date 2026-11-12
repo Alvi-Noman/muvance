@@ -5,8 +5,10 @@ import { useNavigate } from 'react-router';
 import type { BookingDetails } from '@muvance/shared';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { newEventId, trackBooking, trackEvent } from '@/lib/meta-pixel';
+import { markRecording, recordingIds } from '@/lib/session-recorder';
 import { useAvailability, useCreateBooking } from '../hooks/use-booking';
 import { useElementSize } from '../hooks/use-element-size';
+import { useUnfinishedBooking } from '../hooks/use-unfinished-booking';
 import { THANK_YOU_PATH, type ThankYouState } from '../lib/thank-you';
 import { dayKeyOf, detectedTimeZone, groupSlotsByDay } from '../lib/time';
 import { BookingDetailsForm } from './BookingDetailsForm';
@@ -48,6 +50,8 @@ export function BookingWidget() {
   const [viewMonth, setViewMonth] = useState<MonthView>();
   const [selectedSlot, setSelectedSlot] = useState<string>();
   const [direction, setDirection] = useState(1);
+  const [preparing, setPreparing] = useState(false);
+  const unfinished = useUnfinishedBooking(selectedSlot, timeZone);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const timesRef = useRef<HTMLDivElement>(null);
@@ -109,6 +113,7 @@ export function BookingWidget() {
     setSelectedSlot(slot);
     createBooking.reset();
     trackEvent('StartBooking');
+    markRecording('picked-time', { slot });
     if (isDesktop) {
       bringIntoView(cardRef, 50);
     } else {
@@ -130,15 +135,20 @@ export function BookingWidget() {
     backToTimes();
   };
 
-  const submit = (details: BookingDetails) => {
-    if (!selectedSlot) return;
+  const submit = async (details: BookingDetails) => {
+    if (!selectedSlot || preparing || createBooking.isPending) return;
+    unfinished.cancel();
     // Shared by the Pixel and the API's server copy of the Lead, so Meta counts it once.
     const eventId = newEventId();
+    // Links the visitor's recorded visits to the new lead in the admin.
+    setPreparing(true);
+    const ids = await recordingIds().finally(() => setPreparing(false));
     createBooking.mutate(
-      { ...details, startsAt: selectedSlot, timeZone, eventId },
+      { ...details, startsAt: selectedSlot, timeZone, eventId, ...ids },
       {
         onSuccess: (booking) => {
           trackBooking(eventId);
+          markRecording('booked');
           void availability.refetch();
           const state: ThankYouState = {
             ...booking,
@@ -259,10 +269,11 @@ export function BookingWidget() {
                   <StepPane key="details" direction={direction} className="p-6 sm:p-8">
                     <div ref={detailsRef} className="scroll-mt-5">
                       <BookingDetailsForm
-                        onSubmit={submit}
-                        isPending={createBooking.isPending}
+                        onSubmit={(details) => void submit(details)}
+                        isPending={createBooking.isPending || preparing}
                         error={createBooking.error}
                         onSlotTaken={handleSlotTaken}
+                        onChange={unfinished.onChange}
                       />
                     </div>
                   </StepPane>

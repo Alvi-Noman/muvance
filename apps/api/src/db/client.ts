@@ -8,8 +8,11 @@ import type {
   InviteDoc,
   LeadDoc,
   MeetingDoc,
+  RecordingChunkDoc,
+  RecordingDoc,
   SessionDoc,
   SettingsDoc,
+  UnfinishedBookingDoc,
   UserDoc,
 } from './types';
 
@@ -67,6 +70,9 @@ export const collections = {
   activities: () => getDb().collection<ActivityDoc>('activities'),
   settings: () => getDb().collection<SettingsDoc>('settings'),
   blockedTimes: () => getDb().collection<BlockedTimeDoc>('blockedTimes'),
+  recordings: () => getDb().collection<RecordingDoc>('recordings'),
+  recordingChunks: () => getDb().collection<RecordingChunkDoc>('recordingChunks'),
+  unfinishedBookings: () => getDb().collection<UnfinishedBookingDoc>('unfinishedBookings'),
 };
 
 /** Brings data from earlier versions up to date. Safe to run on every start. */
@@ -174,6 +180,14 @@ async function ensureIndexes(database: Db) {
     database.collection('invites').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database.collection('leads').createIndex({ phoneKey: 1 }),
     database.collection('blockedTimes').createIndex({ endDate: 1 }),
+    database.collection('recordings').createIndex({ startedAt: -1 }),
+    database.collection('recordings').createIndex({ visitorId: 1 }),
+    database.collection('recordings').createIndex({ leadId: 1 }),
+    database.collection('recordings').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    database.collection('recordingChunks').createIndex({ recordingId: 1, seq: 1 }),
+    database.collection('unfinishedBookings').createIndex({ status: 1, updatedAt: -1 }),
+    database.collection('unfinishedBookings').createIndex({ phoneKey: 1 }),
+    database.collection('recordingChunks').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database.collection('leads').createIndex({ stage: 1, createdAt: -1 }),
     database.collection('leads').createIndex({ assigneeId: 1 }),
     database.collection('leads').createIndex({ followUpAt: 1 }),
