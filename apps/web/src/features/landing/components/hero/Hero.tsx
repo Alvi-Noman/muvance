@@ -1,9 +1,9 @@
-import { ArrowRight, Banknote, ShieldCheck, Sparkle, TrendingUp } from 'lucide-react';
+import { ArrowRight, Banknote, ShoppingBag, Sparkle, TrendingUp } from 'lucide-react';
 import heroPortrait from '@/assets/images/hero/hero-portrait.jpg';
-import { SectionLink } from '@/components/layout/SectionLink';
 import { siteConfig } from '@/config/site';
 import { ConnectorLines } from './ConnectorLines';
 import { FloatingCard } from './FloatingCard';
+import { HeroArrow } from './HeroArrow';
 import { RotatingBadge } from './RotatingBadge';
 import { Link } from 'react-router';
 
@@ -14,23 +14,13 @@ export function Hero() {
 
       {/* Copy */}
       <div className="relative z-10 mx-auto max-w-7xl px-4 pt-8 text-center sm:px-6 sm:pt-12 lg:px-8">
-        {/* The core offer, linking to the promise section. */}
-        <SectionLink
-          href="/#promise"
-          className="group mb-6 inline-flex animate-fade-up items-center gap-2 rounded-full border border-black/5 bg-white/70 py-1 pr-3 pl-1 text-sm shadow-sm backdrop-blur transition hover:bg-white"
-        >
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-950 px-2.5 py-0.5 text-xs font-medium whitespace-nowrap text-white">
-            <ShieldCheck className="size-3.5" aria-hidden />
-            Paid on results
+        {/* Who it's for: a label, not a link. */}
+        <p className="mb-6 inline-flex animate-fade-up items-center gap-2.5 rounded-full border border-black/5 bg-white/70 py-1.5 pr-4 pl-1.5 text-sm font-medium whitespace-nowrap text-neutral-800 shadow-sm backdrop-blur">
+          <span className="grid size-7 place-items-center rounded-full bg-neutral-950 text-white">
+            <ShoppingBag className="size-3.5" aria-hidden />
           </span>
-          <span className="hidden text-neutral-600 sm:inline">
-            No fees until you hit your sales target
-          </span>
-          <ArrowRight
-            className="size-3.5 text-neutral-400 transition-transform group-hover:translate-x-0.5"
-            aria-hidden
-          />
-        </SectionLink>
+          For eCommerce Business Owners
+        </p>
 
         <h1 className="animate-fade-up font-serif text-[min(13.5vw,4.25rem)] sm:text-[clamp(4rem,8vw,7rem)] leading-[0.92] tracking-[-0.02em]">
           Smarter ads
@@ -48,18 +38,21 @@ export function Hero() {
           massive advertising budgets.
         </p>
 
-        <div className="mt-9 flex animate-fade-up justify-center [animation-delay:240ms]">
-          {/* The one call to action: beats gently to draw the eye, and stops while hovered. */}
-          <Link
-            to={siteConfig.bookingHref}
-            className="group inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-full bg-neutral-950 px-8 py-4 text-base font-medium text-white shadow-lg shadow-black/10 transition-colors hover:bg-neutral-800 hover:[animation-play-state:paused] sm:w-auto motion-safe:animate-cta-pulse"
-          >
-            Book a call
-            <ArrowRight
-              className="size-4 transition-transform group-hover:translate-x-1"
-              aria-hidden
-            />
-          </Link>
+        <div className="mt-12 flex animate-fade-up justify-center [animation-delay:240ms] sm:mt-9">
+          <div className="relative">
+            <HeroArrow />
+            {/* The one call to action: beats gently to draw the eye, and stops while hovered. */}
+            <Link
+              to={siteConfig.bookingHref}
+              className="group inline-flex items-center justify-center gap-2 rounded-full bg-neutral-950 px-8 py-4 text-base font-medium text-white shadow-lg shadow-black/10 transition-colors hover:bg-neutral-800 hover:[animation-play-state:paused] motion-safe:animate-cta-pulse"
+            >
+              Book a call
+              <ArrowRight
+                className="size-4 transition-transform group-hover:translate-x-1"
+                aria-hidden
+              />
+            </Link>
+          </div>
         </div>
       </div>
 
