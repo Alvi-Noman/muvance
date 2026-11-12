@@ -12,6 +12,34 @@
   --animate-float: float 6s ease-in-out infinite;
   --animate-fade-up: fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-marquee: marquee 40s linear infinite;
+  /* Main call to action: a double "heartbeat" with a ring rippling out, every few seconds. */
+  --animate-cta-pulse: heartbeat 3s ease-in-out 1.2s infinite, cta-ring 3s ease-out 1.2s infinite;
+
+  @keyframes heartbeat {
+    0%,
+    24%,
+    100% {
+      scale: 1;
+    }
+    6%,
+    16% {
+      scale: 1.06;
+    }
+    11% {
+      scale: 1;
+    }
+  }
+
+  @keyframes cta-ring {
+    0% {
+      box-shadow: 0 0 0 0 rgb(10 10 10 / 0.35);
+    }
+    40%,
+    100% {
+      box-shadow: 0 0 0 18px rgb(10 10 10 / 0);
+    }
+  }
+
   @keyframes marquee {
     to {
       translate: -50% 0;

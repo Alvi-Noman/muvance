@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, Banknote, ShieldCheck, Sparkle, TrendingUp } from 'lucide-react';
+import { ArrowRight, Banknote, ShieldCheck, Sparkle, TrendingUp } from 'lucide-react';
 import heroPortrait from '@/assets/images/hero/hero-portrait.jpg';
 import { SectionLink } from '@/components/layout/SectionLink';
 import { siteConfig } from '@/config/site';
@@ -38,31 +38,28 @@ export function Hero() {
           <em>for faster growth.</em>
         </h1>
 
-        <p className="mx-auto mt-6 max-w-md animate-fade-up text-base text-balance text-neutral-500 [animation-delay:120ms] sm:text-lg">
-          Muvance plans, launches and scales your Meta ad campaigns: tracking, creatives and
-          testing, all in one place.
+        <p className="mx-auto mt-6 max-w-xl animate-fade-up text-base text-balance text-neutral-500 [animation-delay:120ms] sm:text-lg">
+          This is how our clients generate{' '}
+          <strong className="font-semibold text-neutral-900">
+            50 lac to 2 crore taka of sales
+          </strong>{' '}
+          every single month for{' '}
+          <strong className="font-semibold text-neutral-900">less than $1 CPA</strong>, without
+          massive advertising budgets.
         </p>
 
-        <div className="mt-8 flex animate-fade-up flex-col items-center justify-center gap-3 sm:flex-row [animation-delay:240ms]">
+        <div className="mt-9 flex animate-fade-up justify-center [animation-delay:240ms]">
+          {/* The one call to action: beats gently to draw the eye, and stops while hovered. */}
           <Link
             to={siteConfig.bookingHref}
-            className="group inline-flex w-full max-w-xs items-center sm:w-auto justify-center gap-2 rounded-full bg-neutral-950 px-6 py-3 text-sm font-medium text-white shadow-lg shadow-black/10 transition hover:bg-neutral-800"
+            className="group inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-full bg-neutral-950 px-8 py-4 text-base font-medium text-white shadow-lg shadow-black/10 transition-colors hover:bg-neutral-800 hover:[animation-play-state:paused] sm:w-auto motion-safe:animate-cta-pulse"
           >
             Book a call
             <ArrowRight
-              className="size-4 transition-transform group-hover:translate-x-0.5"
+              className="size-4 transition-transform group-hover:translate-x-1"
               aria-hidden
             />
           </Link>
-          <SectionLink
-            href="/#promise"
-            className="inline-flex w-full max-w-xs items-center sm:w-auto justify-center gap-2.5 rounded-full border border-black/10 bg-white/70 px-5 py-3 text-sm font-medium backdrop-blur transition hover:bg-white"
-          >
-            <span className="grid size-5 place-items-center rounded-full bg-neutral-950">
-              <ArrowDown className="size-3 text-white" aria-hidden />
-            </span>
-            See our promise
-          </SectionLink>
         </div>
       </div>
 
