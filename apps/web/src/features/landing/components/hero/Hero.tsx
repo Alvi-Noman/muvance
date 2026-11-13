@@ -28,7 +28,7 @@ export function Hero() {
           <em>for faster growth.</em>
         </h1>
 
-        <p className="mx-auto mt-6 max-w-xl animate-fade-up text-base text-balance text-neutral-500 [animation-delay:120ms] sm:text-lg">
+        <p className="mx-auto mt-6 max-w-xl animate-fade-up lg:max-w-3xl text-base text-balance text-neutral-500 [animation-delay:120ms] sm:text-lg">
           This is how our clients generate{' '}
           <strong className="font-semibold text-neutral-900">
             50 lac to 2 crore taka of sales
