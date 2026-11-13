@@ -1,5 +1,7 @@
 export const siteConfig = {
   name: 'Muvance',
+  /** Canonical public address, used for canonical links and structured data. */
+  url: 'https://muvance.com',
   tagline: 'Meta ads that grow your business, not just your spend.',
   /** Every "Book a call" button goes to the booking page. */
   bookingHref: '/book',
@@ -11,5 +13,6 @@ export const siteConfig = {
     { label: 'Services', href: '/#services' },
     { label: 'Process', href: '/#process' },
     { label: 'FAQ', href: '/#faq' },
+    { label: 'Blog', href: '/blog' },
   ],
 } as const;

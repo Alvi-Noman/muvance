@@ -16,6 +16,14 @@ export const router = createBrowserRouter([
         lazy: () => import('@/pages/BookPage').then((m) => ({ Component: m.BookPage })),
       },
       {
+        path: 'blog',
+        lazy: () => import('@/pages/BlogPage').then((m) => ({ Component: m.BlogPage })),
+      },
+      {
+        path: 'blog/:slug',
+        lazy: () => import('@/pages/BlogPostPage').then((m) => ({ Component: m.BlogPostPage })),
+      },
+      {
         path: 'thank-you',
         lazy: () => import('@/pages/ThankYouPage').then((m) => ({ Component: m.ThankYouPage })),
       },

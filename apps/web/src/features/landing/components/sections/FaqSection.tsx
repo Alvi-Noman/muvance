@@ -7,6 +7,7 @@ import { useMediaQuery } from '@/hooks/use-media-query';
 import { cn } from '@/lib/cn';
 import { faqs } from '../../content';
 import { Reveal } from '../shared/Reveal';
+import { RiskNote } from '../shared/RiskNote';
 import { SectionHeading } from '../shared/SectionHeading';
 import { Link } from 'react-router';
 
@@ -108,6 +109,7 @@ function FaqCta({ className }: { className: string }) {
           aria-hidden
         />
       </Link>
+      <RiskNote className="mt-3" />
     </Reveal>
   );
 }

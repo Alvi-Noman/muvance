@@ -3,6 +3,7 @@ import heroPortrait from '@/assets/images/hero/hero-portrait.jpg';
 import { siteConfig } from '@/config/site';
 import { ConnectorLines } from './ConnectorLines';
 import { FloatingCard } from './FloatingCard';
+import { RiskNote } from '../shared/RiskNote';
 import { HeroArrow } from './HeroArrow';
 import { RotatingBadge } from './RotatingBadge';
 import { Link } from 'react-router';
@@ -38,7 +39,7 @@ export function Hero() {
           massive advertising budgets.
         </p>
 
-        <div className="mt-12 flex animate-fade-up justify-center [animation-delay:240ms] sm:mt-9">
+        <div className="mt-12 flex animate-fade-up flex-col items-center gap-3 [animation-delay:240ms] sm:mt-9">
           <div className="relative">
             <HeroArrow />
             {/* The one call to action: beats gently to draw the eye, and stops while hovered. */}
@@ -53,6 +54,7 @@ export function Hero() {
               />
             </Link>
           </div>
+          <RiskNote />
         </div>
       </div>
 

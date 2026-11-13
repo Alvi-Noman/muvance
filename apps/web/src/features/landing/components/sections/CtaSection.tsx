@@ -5,6 +5,7 @@ import { Container } from '@/components/ui/Container';
 import { siteConfig } from '@/config/site';
 import { bookingPerks } from '../../content';
 import { Reveal } from '../shared/Reveal';
+import { RiskNote } from '../shared/RiskNote';
 import { SectionHeading } from '../shared/SectionHeading';
 
 /** Final call to action at the bottom of the landing page. Booking itself happens on /book. */
@@ -42,7 +43,7 @@ export function CtaSection() {
             </ul>
           </Reveal>
 
-          <Reveal delay={200} className="mt-12">
+          <Reveal delay={200} className="mt-12 flex flex-col items-center gap-3">
             <Link
               to={siteConfig.bookingHref}
               className={buttonStyles({ variant: 'inverted', size: 'lg' })}
@@ -53,6 +54,7 @@ export function CtaSection() {
                 aria-hidden
               />
             </Link>
+            <RiskNote tone="dark" />
           </Reveal>
 
           <Reveal

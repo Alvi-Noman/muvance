@@ -4,6 +4,7 @@ import { Container } from '@/components/ui/Container';
 import { siteConfig } from '@/config/site';
 import { painPoints } from '../../content';
 import { Reveal } from '../shared/Reveal';
+import { RiskNote } from '../shared/RiskNote';
 import { SectionHeading } from '../shared/SectionHeading';
 import { Link } from 'react-router';
 
@@ -30,6 +31,7 @@ export function ProblemSection() {
                 aria-hidden
               />
             </Link>
+            <RiskNote className="mt-3" />
           </Reveal>
         </div>
 

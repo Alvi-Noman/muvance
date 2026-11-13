@@ -1,0 +1,37 @@
+# Muvance: search engines and AI assistants are welcome to read and cite this site.
+
+User-agent: *
+Allow: /
+# Post-booking confirmation page: nothing useful to index.
+Disallow: /thank-you
+
+# AI crawlers, named explicitly so their access is unambiguous.
+User-agent: GPTBot
+Allow: /
+Disallow: /thank-you
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /thank-you
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /thank-you
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /thank-you
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /thank-you
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /thank-you
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /thank-you
+
+Sitemap: https://muvance.com/sitemap.xml

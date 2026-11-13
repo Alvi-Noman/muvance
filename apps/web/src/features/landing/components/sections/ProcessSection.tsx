@@ -5,6 +5,7 @@ import { siteConfig } from '@/config/site';
 import { cn } from '@/lib/cn';
 import { processSteps } from '../../content';
 import { Reveal } from '../shared/Reveal';
+import { RiskNote } from '../shared/RiskNote';
 import { SectionHeading } from '../shared/SectionHeading';
 import { Link } from 'react-router';
 
@@ -55,7 +56,7 @@ export function ProcessSection() {
             ))}
           </ol>
 
-          <Reveal className="mt-16 flex justify-center">
+          <Reveal className="mt-16 flex flex-col items-center gap-3">
             <Link to={siteConfig.bookingHref} className={buttonStyles({ variant: 'inverted' })}>
               Book a call
               <ArrowRight
@@ -63,6 +64,7 @@ export function ProcessSection() {
                 aria-hidden
               />
             </Link>
+            <RiskNote tone="dark" />
           </Reveal>
         </Container>
       </div>

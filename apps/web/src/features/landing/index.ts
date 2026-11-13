@@ -6,3 +6,4 @@ export { ProblemSection } from './components/sections/ProblemSection';
 export { PromiseSection } from './components/sections/PromiseSection';
 export { ProcessSection } from './components/sections/ProcessSection';
 export { ServicesSection } from './components/sections/ServicesSection';
+export { RiskNote } from './components/shared/RiskNote';

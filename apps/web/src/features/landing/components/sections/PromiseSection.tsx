@@ -20,7 +20,7 @@ export function PromiseSection() {
               Hit your sales target first. <em>Then we get paid.</em>
             </>
           }
-          description="Most agencies bill you every month, whether your sales grow or not. We agree on a sales target with you, and we don't charge a single taka until you reach it."
+          description="Most agencies bill you every month, whether your sales grow or not. We agree on a sales target with you, and we don't charge a single taka until you reach it. We treat your business like our own, as your growth partner, not just another agency."
         />
 
         <div className="mt-16 grid gap-4 lg:grid-cols-2">
@@ -41,7 +41,7 @@ export function PromiseSection() {
               <ShieldCheck className="size-5" aria-hidden />
             </span>
             <div>
-              <p className="text-lg font-medium">We only win when you do.</p>
+              <p className="text-lg font-medium">0% risk. We only win when you do.</p>
               <p className="mt-1 max-w-xl text-sm leading-relaxed text-neutral-500">
                 No retainers, no setup fees, no advance payments. If we don&apos;t deliver the sales
                 we promised, you don&apos;t pay. It&apos;s that simple.
