@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Link, useLocation } from 'react-router';
 import { buttonStyles } from '@/components/ui/Button';
 import { siteConfig } from '@/config/site';
@@ -27,13 +27,20 @@ export function ThankYouPage() {
           <h1 className="font-serif text-[clamp(3rem,8vw,5rem)] leading-[0.95]">
             Thanks for <em>booking.</em>
           </h1>
-          <p className="mt-6 text-neutral-500">
-            We&apos;ll call you just before the meeting. Need another time?
-          </p>
-          <Link to={siteConfig.bookingHref} className={`${buttonStyles()} mt-8`}>
-            Book a call
-            <ArrowRight className="size-4" aria-hidden />
-          </Link>
+          <p className="mt-6 text-neutral-500">We&apos;ll call you just before the meeting.</p>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link to="/" className={buttonStyles()}>
+              <ArrowLeft
+                className="size-4 transition-transform group-hover:-translate-x-0.5"
+                aria-hidden
+              />
+              Go to home
+            </Link>
+            <Link to={siteConfig.bookingHref} className={buttonStyles({ variant: 'secondary' })}>
+              Need another time?
+              <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </div>
         </div>
       )}
     </section>
