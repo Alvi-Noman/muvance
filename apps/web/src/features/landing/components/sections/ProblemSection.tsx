@@ -1,12 +1,11 @@
 import { ArrowRight } from 'lucide-react';
 import { buttonStyles } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
-import { siteConfig } from '@/config/site';
 import { painPoints } from '../../content';
 import { Reveal } from '../shared/Reveal';
 import { RiskNote } from '../shared/RiskNote';
 import { SectionHeading } from '../shared/SectionHeading';
-import { Link } from 'react-router';
+import { BookingLink } from '@/components/ui/BookingLink';
 
 export function ProblemSection() {
   return (
@@ -24,13 +23,13 @@ export function ProblemSection() {
             description="If any of these hit home, you're leaving money on the table. The good news: every one of them is fixable."
           />
           <Reveal delay={150} className="mt-8">
-            <Link to={siteConfig.bookingHref} className={buttonStyles()}>
+            <BookingLink className={buttonStyles()}>
               Book a call
               <ArrowRight
                 className="size-4 transition-transform group-hover:translate-x-0.5"
                 aria-hidden
               />
-            </Link>
+            </BookingLink>
             <RiskNote className="mt-3" />
           </Reveal>
         </div>

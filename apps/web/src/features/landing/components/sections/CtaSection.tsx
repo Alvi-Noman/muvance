@@ -1,12 +1,11 @@
 import { ArrowRight, Check, Clock, ShieldCheck } from 'lucide-react';
-import { Link } from 'react-router';
 import { buttonStyles } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
-import { siteConfig } from '@/config/site';
 import { bookingPerks } from '../../content';
 import { Reveal } from '../shared/Reveal';
 import { RiskNote } from '../shared/RiskNote';
 import { SectionHeading } from '../shared/SectionHeading';
+import { BookingLink } from '@/components/ui/BookingLink';
 
 /** Final call to action at the bottom of the landing page. Booking itself happens on /book. */
 export function CtaSection() {
@@ -44,16 +43,13 @@ export function CtaSection() {
           </Reveal>
 
           <Reveal delay={200} className="mt-12 flex flex-col items-center gap-3">
-            <Link
-              to={siteConfig.bookingHref}
-              className={buttonStyles({ variant: 'inverted', size: 'lg' })}
-            >
+            <BookingLink className={buttonStyles({ variant: 'inverted', size: 'lg' })}>
               Book a call
               <ArrowRight
                 className="size-4 transition-transform group-hover:translate-x-0.5"
                 aria-hidden
               />
-            </Link>
+            </BookingLink>
             <RiskNote tone="dark" />
           </Reveal>
 

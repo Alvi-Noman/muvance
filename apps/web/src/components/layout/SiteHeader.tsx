@@ -5,8 +5,14 @@ import { Logo } from '@/components/brand/Logo';
 import { siteConfig } from '@/config/site';
 import { SectionLink } from './SectionLink';
 import { cn } from '@/lib/cn';
+import { BookingLink } from '@/components/ui/BookingLink';
 
-export function SiteHeader() {
+type SiteHeaderProps = {
+  /** Ad landing pages: logo and Book a call only, no way to wander off. */
+  minimal?: boolean;
+};
+
+export function SiteHeader({ minimal = false }: SiteHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -44,11 +50,15 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-8">
-        <Link to="/">
+        {minimal ? (
           <Logo />
-        </Link>
+        ) : (
+          <Link to="/">
+            <Logo />
+          </Link>
+        )}
 
-        <nav aria-label="Main" className="hidden md:block">
+        <nav aria-label="Main" className={cn('hidden', !minimal && 'md:block')}>
           <ul className="flex items-center gap-1 rounded-full border border-black/5 bg-white/60 p-1 shadow-sm backdrop-blur">
             {siteConfig.nav.map((item) => (
               <li key={item.href}>
@@ -64,15 +74,18 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link
-            to={siteConfig.bookingHref}
-            className="hidden items-center gap-1.5 rounded-full bg-neutral-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 sm:inline-flex"
+          <BookingLink
+            className={cn(
+              'items-center gap-1.5 rounded-full bg-neutral-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800',
+              minimal ? 'inline-flex' : 'hidden sm:inline-flex',
+            )}
           >
             Book a call
             <ArrowUpRight className="size-4" aria-hidden />
-          </Link>
+          </BookingLink>
           <button
             type="button"
+            hidden={minimal}
             onClick={() => setMenuOpen((open) => !open)}
             aria-expanded={menuOpen}
             aria-controls="mobile-menu"
@@ -107,14 +120,13 @@ export function SiteHeader() {
             ))}
           </ul>
         </nav>
-        <Link
-          to={siteConfig.bookingHref}
+        <BookingLink
           onClick={() => setMenuOpen(false)}
           className="mt-2 flex items-center justify-center gap-1.5 rounded-2xl bg-neutral-950 px-5 py-3.5 text-sm font-medium text-white transition hover:bg-neutral-800"
         >
           Book a call
           <ArrowUpRight className="size-4" aria-hidden />
-        </Link>
+        </BookingLink>
       </div>
     </header>
   );

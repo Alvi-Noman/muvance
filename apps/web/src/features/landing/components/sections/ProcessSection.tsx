@@ -1,13 +1,12 @@
 import { ArrowRight } from 'lucide-react';
 import { buttonStyles } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
-import { siteConfig } from '@/config/site';
 import { cn } from '@/lib/cn';
 import { processSteps } from '../../content';
 import { Reveal } from '../shared/Reveal';
 import { RiskNote } from '../shared/RiskNote';
 import { SectionHeading } from '../shared/SectionHeading';
-import { Link } from 'react-router';
+import { BookingLink } from '@/components/ui/BookingLink';
 
 export function ProcessSection() {
   return (
@@ -57,13 +56,13 @@ export function ProcessSection() {
           </ol>
 
           <Reveal className="mt-16 flex flex-col items-center gap-3">
-            <Link to={siteConfig.bookingHref} className={buttonStyles({ variant: 'inverted' })}>
+            <BookingLink className={buttonStyles({ variant: 'inverted' })}>
               Book a call
               <ArrowRight
                 className="size-4 transition-transform group-hover:translate-x-0.5"
                 aria-hidden
               />
-            </Link>
+            </BookingLink>
             <RiskNote tone="dark" />
           </Reveal>
         </Container>

@@ -1,5 +1,4 @@
 import { ArrowRight, Check, ShieldCheck, X } from 'lucide-react';
-import { Link } from 'react-router';
 import { buttonStyles } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { siteConfig } from '@/config/site';
@@ -7,6 +6,7 @@ import { cn } from '@/lib/cn';
 import { promiseComparison } from '../../content';
 import { Reveal } from '../shared/Reveal';
 import { SectionHeading } from '../shared/SectionHeading';
+import { BookingLink } from '@/components/ui/BookingLink';
 
 /** Muvance's core differentiator: no fees until the client hits their sales target. */
 export function PromiseSection() {
@@ -48,13 +48,13 @@ export function PromiseSection() {
               </p>
             </div>
           </div>
-          <Link to={siteConfig.bookingHref} className={cn(buttonStyles(), 'shrink-0')}>
+          <BookingLink className={cn(buttonStyles(), 'shrink-0')}>
             Book a call
             <ArrowRight
               className="size-4 transition-transform group-hover:translate-x-0.5"
               aria-hidden
             />
-          </Link>
+          </BookingLink>
         </Reveal>
       </Container>
     </section>

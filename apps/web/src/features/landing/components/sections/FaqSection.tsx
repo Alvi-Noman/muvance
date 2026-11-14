@@ -2,14 +2,13 @@ import { useId, useState } from 'react';
 import { ArrowRight, Plus } from 'lucide-react';
 import { buttonStyles } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
-import { siteConfig } from '@/config/site';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { cn } from '@/lib/cn';
 import { faqs } from '../../content';
 import { Reveal } from '../shared/Reveal';
 import { RiskNote } from '../shared/RiskNote';
 import { SectionHeading } from '../shared/SectionHeading';
-import { Link } from 'react-router';
+import { BookingLink } from '@/components/ui/BookingLink';
 
 export function FaqSection() {
   const [first, ...rest] = faqs;
@@ -102,13 +101,13 @@ function FaqCta({ className }: { className: string }) {
     >
       <p className="font-medium">Still have questions?</p>
       <p className="mt-1 text-sm text-neutral-500">Ask us anything on a free, no-pressure call.</p>
-      <Link to={siteConfig.bookingHref} className={cn(buttonStyles(), 'mt-5')}>
+      <BookingLink className={cn(buttonStyles(), 'mt-5')}>
         Book a call
         <ArrowRight
           className="size-4 transition-transform group-hover:translate-x-0.5"
           aria-hidden
         />
-      </Link>
+      </BookingLink>
       <RiskNote className="mt-3" />
     </Reveal>
   );

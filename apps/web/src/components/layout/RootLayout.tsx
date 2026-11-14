@@ -4,14 +4,15 @@ import { SessionRecording } from './SessionRecording';
 import { SiteFooter } from './SiteFooter';
 import { SiteHeader } from './SiteHeader';
 
-export function RootLayout() {
+/** `minimal` is for ad landing pages: no menu links, so visitors stay on the page. */
+export function RootLayout({ minimal = false }: { minimal?: boolean }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
+      <SiteHeader minimal={minimal} />
       <main className="flex-1">
         <Outlet />
       </main>
-      <SiteFooter />
+      <SiteFooter minimal={minimal} />
       <MetaPageViews />
       <SessionRecording />
       {/* Start each new page at the top (or its #section), and restore position on back/forward.

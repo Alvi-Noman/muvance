@@ -7,24 +7,32 @@ import { Container } from '@/components/ui/Container';
 import { siteConfig } from '@/config/site';
 import { cn } from '@/lib/cn';
 import { SectionLink } from './SectionLink';
+import { BookingLink } from '@/components/ui/BookingLink';
 
-export function SiteFooter() {
+export function SiteFooter({ minimal = false }: { minimal?: boolean }) {
   return (
     <footer className="overflow-hidden pt-24">
       <Container>
-        <div className="grid gap-12 border-b border-black/10 pb-16 md:grid-cols-2 lg:grid-cols-[1.2fr_0.8fr_1.4fr]">
+        <div
+          className={cn(
+            'grid gap-12 border-b border-black/10 pb-16 md:grid-cols-2',
+            !minimal && 'lg:grid-cols-[1.2fr_0.8fr_1.4fr]',
+          )}
+        >
           <div>
             <Logo />
             <p className="mt-3 max-w-xs text-sm text-neutral-500">{siteConfig.tagline}</p>
           </div>
 
-          <FooterColumn title="Explore">
-            {siteConfig.nav.map((item) => (
-              <FooterLink key={item.href} href={item.href}>
-                {item.label}
-              </FooterLink>
-            ))}
-          </FooterColumn>
+          {!minimal && (
+            <FooterColumn title="Explore">
+              {siteConfig.nav.map((item) => (
+                <FooterLink key={item.href} href={item.href}>
+                  {item.label}
+                </FooterLink>
+              ))}
+            </FooterColumn>
+          )}
 
           <FooterContact />
         </div>
@@ -87,13 +95,13 @@ function FooterContact() {
         ))}
       </ol>
 
-      <Link to={siteConfig.bookingHref} className={cn(buttonStyles(), 'mt-6')}>
+      <BookingLink className={cn(buttonStyles(), 'mt-6')}>
         Book a call
         <ArrowRight
           className="size-4 transition-transform group-hover:translate-x-0.5"
           aria-hidden
         />
-      </Link>
+      </BookingLink>
     </section>
   );
 }

@@ -1,12 +1,11 @@
 import { ArrowRight, Banknote, ShoppingBag, Sparkle, TrendingUp } from 'lucide-react';
 import heroPortrait from '@/assets/images/hero/hero-portrait.jpg';
-import { siteConfig } from '@/config/site';
 import { ConnectorLines } from './ConnectorLines';
 import { FloatingCard } from './FloatingCard';
 import { RiskNote } from '../shared/RiskNote';
 import { HeroArrow } from './HeroArrow';
 import { RotatingBadge } from './RotatingBadge';
-import { Link } from 'react-router';
+import { BookingLink } from '@/components/ui/BookingLink';
 
 export function Hero() {
   return (
@@ -43,16 +42,13 @@ export function Hero() {
           <div className="relative">
             <HeroArrow />
             {/* The one call to action: beats gently to draw the eye, and stops while hovered. */}
-            <Link
-              to={siteConfig.bookingHref}
-              className="group inline-flex items-center justify-center gap-2 rounded-full bg-neutral-950 px-8 py-4 text-base font-medium text-white shadow-lg shadow-black/10 transition-colors hover:bg-neutral-800 hover:[animation-play-state:paused] motion-safe:animate-cta-pulse"
-            >
+            <BookingLink className="group inline-flex items-center justify-center gap-2 rounded-full bg-neutral-950 px-8 py-4 text-base font-medium text-white shadow-lg shadow-black/10 transition-colors hover:bg-neutral-800 hover:[animation-play-state:paused] motion-safe:animate-cta-pulse">
               Book a call
               <ArrowRight
                 className="size-4 transition-transform group-hover:translate-x-1"
                 aria-hidden
               />
-            </Link>
+            </BookingLink>
           </div>
           <RiskNote />
         </div>
