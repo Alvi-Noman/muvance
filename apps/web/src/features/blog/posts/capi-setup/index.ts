@@ -7,7 +7,7 @@ export const capiSetup: BlogPost = {
   description:
     'Why the Pixel alone is not enough, which setup method fits your store, the exact data to send, and a go-live checklist.',
   category: 'Tracking',
-  published: '2026-11-14',
+  published: '2025-01-30',
   readMinutes: 10,
   cover: { glyph: 'funnel', tone: 'from-slate-200 via-sky-100 to-indigo-100', label: 'CAPI' },
   toc: [

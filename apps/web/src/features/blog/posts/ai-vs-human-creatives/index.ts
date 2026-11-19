@@ -7,7 +7,7 @@ export const aiVsHumanCreatives: BlogPost = {
   description:
     'Where AI wins, where people still win, a hybrid workflow that uses both, and ground rules for AI ads.',
   category: 'Creative',
-  published: '2026-11-14',
+  published: '2026-09-18',
   readMinutes: 6,
   cover: { glyph: 'split', tone: 'from-violet-200 via-purple-100 to-pink-100', label: 'AI' },
   toc: [

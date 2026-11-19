@@ -7,7 +7,7 @@ export const codFakeOrders: BlogPost = {
   description:
     'What failed COD orders really cost, and five practical steps Bangladeshi eCommerce brands use to catch them before they ship.',
   category: 'Bangladesh',
-  published: '2026-11-14',
+  published: '2026-09-03',
   readMinutes: 8,
   cover: { glyph: 'funnel', tone: 'from-teal-200 via-emerald-100 to-green-100', label: 'COD' },
   toc: [

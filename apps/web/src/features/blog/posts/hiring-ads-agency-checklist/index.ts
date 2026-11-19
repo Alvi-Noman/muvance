@@ -7,7 +7,7 @@ export const hiringAdsAgencyChecklist: BlogPost = {
   description:
     'Red flags, green flags, how to structure a fair trial, and the questions to ask before you sign anything.',
   category: 'Agencies',
-  published: '2026-11-14',
+  published: '2025-09-08',
   readMinutes: 6,
   cover: { glyph: 'grid', tone: 'from-stone-200 via-amber-100 to-orange-100', label: '?' },
   toc: [

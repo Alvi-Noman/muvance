@@ -7,7 +7,7 @@ export const pageSpeedMobile: BlogPost = {
   description:
     "Google's speed targets, a quick reality check for your page, what makes pages heavy, and fixes in order of impact.",
   category: 'Conversion',
-  published: '2026-11-14',
+  published: '2025-09-11',
   readMinutes: 6,
   cover: { glyph: 'bars', tone: 'from-fuchsia-200 via-pink-100 to-rose-100', label: '2.5s' },
   toc: [

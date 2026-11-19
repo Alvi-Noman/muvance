@@ -7,7 +7,7 @@ export const websiteVsFacebookPage: BlogPost = {
   description:
     'What a page does well, when it starts holding you back, and how to move to a website without losing sales.',
   category: 'Bangladesh',
-  published: '2026-11-14',
+  published: '2025-08-08',
   readMinutes: 6,
   cover: { glyph: 'split', tone: 'from-sky-200 via-blue-100 to-violet-100', label: 'Web' },
   toc: [

@@ -68,7 +68,13 @@ export const newEventId = () =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 
-const STANDARD_EVENTS = new Set(['PageView', 'ViewContent', 'Lead', 'Schedule']);
+const STANDARD_EVENTS = new Set([
+  'PageView',
+  'ViewContent',
+  'Lead',
+  'Schedule',
+  'SubmitApplication',
+]);
 const BOOKING_DATA = { content_name: 'Discovery call', content_category: 'Booking' };
 
 function fire(name: string, eventId: string, data?: Record<string, unknown>) {
@@ -100,4 +106,17 @@ export function trackBooking(eventId: string) {
   if (!start()) return;
   fire('Lead', `lead-${eventId}`, BOOKING_DATA);
   fire('Schedule', `schedule-${eventId}`, BOOKING_DATA);
+}
+
+/**
+ * An investment or training application. The API sends the server copy (same id) when it
+ * saves the form, so only the Pixel copy is sent here. Not a Lead, so it never mixes with the
+ * booked calls the lead campaigns optimise for.
+ */
+export function trackApplication(eventId: string, type: 'investment' | 'training') {
+  if (!start()) return;
+  fire('SubmitApplication', `application-${eventId}`, {
+    content_name: type === 'investment' ? 'Investment application' : 'Training',
+    content_category: 'Application',
+  });
 }

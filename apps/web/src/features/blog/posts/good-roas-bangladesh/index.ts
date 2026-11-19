@@ -7,7 +7,7 @@ export const goodRoasBangladesh: BlogPost = {
   description:
     'Why category averages mislead, how to calculate your break-even ROAS including failed COD orders, and how to lower it.',
   category: 'Bangladesh',
-  published: '2026-11-14',
+  published: '2025-04-18',
   readMinutes: 6,
   cover: { glyph: 'split', tone: 'from-orange-200 via-amber-100 to-yellow-100', label: '2×' },
   toc: [

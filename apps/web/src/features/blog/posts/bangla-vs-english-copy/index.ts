@@ -7,7 +7,7 @@ export const banglaVsEnglishCopy: BlogPost = {
   description:
     'The same message three ways, who tends to respond to what, and how to run a fair language test.',
   category: 'Bangladesh',
-  published: '2026-11-14',
+  published: '2025-07-16',
   readMinutes: 6,
   cover: { glyph: 'grid', tone: 'from-emerald-200 via-green-100 to-lime-100', label: 'বাং' },
   toc: [

@@ -5,3 +5,4 @@ export * from './types/api';
 export * from './schemas/tracking';
 export * from './schemas/recordings';
 export * from './schemas/unfinished';
+export * from './schemas/applications';

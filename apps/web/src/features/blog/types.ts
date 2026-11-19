@@ -1,7 +1,23 @@
 import type { ComponentType } from 'react';
 
 export type BlogCategory =
-  'Campaign setup' | 'Creative' | 'Tracking' | 'Scaling' | 'Conversion' | 'Bangladesh' | 'Agencies';
+  | 'Campaign setup'
+  | 'Creative'
+  | 'Tracking'
+  | 'Scaling'
+  | 'Conversion'
+  | 'Bangladesh'
+  | 'Operations'
+  | 'Brand'
+  | 'Growth'
+  | 'Agencies'
+  | 'Audience'
+  | 'Metrics'
+  | 'SEO'
+  | 'Content'
+  | 'Social media'
+  | 'Retention'
+  | 'Strategy';
 
 /** The little chart drawn on a post's cover, so every card has a visual even without photos. */
 export type CoverGlyph = 'split' | 'bars' | 'funnel' | 'line' | 'grid';

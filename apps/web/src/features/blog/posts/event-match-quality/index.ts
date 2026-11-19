@@ -7,7 +7,7 @@ export const eventMatchQuality: BlogPost = {
   description:
     'Why your score is low, which customer details matter most, and how to format Bangladeshi phone numbers correctly.',
   category: 'Tracking',
-  published: '2026-11-14',
+  published: '2025-12-29',
   readMinutes: 7,
   cover: { glyph: 'funnel', tone: 'from-slate-200 via-zinc-100 to-sky-100', label: 'EMQ' },
   toc: [

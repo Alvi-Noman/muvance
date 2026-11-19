@@ -7,7 +7,7 @@ export const performanceVsRetainer: BlogPost = {
   description:
     'How each pricing model works, what it costs at different results, the honest pros and cons, and the questions to ask any agency.',
   category: 'Agencies',
-  published: '2026-11-14',
+  published: '2026-11-01',
   readMinutes: 7,
   cover: { glyph: 'split', tone: 'from-stone-200 via-neutral-100 to-amber-100', label: '0%' },
   toc: [

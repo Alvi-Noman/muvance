@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
-import { ArrowUpRight, Sparkle } from 'lucide-react';
-import { Link } from 'react-router';
+import { useEffect, useRef } from 'react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, Sparkle } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router';
 import { Container } from '@/components/ui/Container';
 import { siteConfig } from '@/config/site';
 import { PostCover, posts, usePageMeta, type BlogPost } from '@/features/blog';
@@ -22,6 +22,16 @@ const BLOG_JSON_LD = {
   })),
 };
 
+/** Cards per page (the featured post on page one is extra). */
+const PAGE_SIZE = 12;
+
+/** Topics, biggest first, so the filter row leads with the richest ones. */
+const CATEGORIES = (() => {
+  const counts = new Map<string, number>();
+  for (const p of posts) counts.set(p.category, (counts.get(p.category) ?? 0) + 1);
+  return ['All', ...[...counts].sort((a, b) => b[1] - a[1]).map(([c]) => c)];
+})();
+
 const dateFormat = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'short',
@@ -29,18 +39,48 @@ const dateFormat = new Intl.DateTimeFormat('en-GB', {
 });
 
 export function BlogPage() {
+  const [params, setParams] = useSearchParams();
+  const topic = params.get('topic');
+  const category = topic && CATEGORIES.includes(topic) ? topic : 'All';
+  const shown = category === 'All' ? posts : posts.filter((p) => p.category === category);
+  // Page one leads with the newest post as a large featured card.
+  const [featured, ...rest] = shown;
+  const pageCount = Math.max(1, Math.ceil(rest.length / PAGE_SIZE));
+  const requested = Number.parseInt(params.get('page') ?? '1', 10);
+  const page = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), pageCount) : 1;
+  const cards = rest.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   usePageMeta({
-    title: `Blog: Meta ads playbooks for eCommerce | ${siteConfig.name}`,
+    title: `Blog: digital marketing playbooks for eCommerce${page > 1 ? ` (page ${page})` : ''} | ${siteConfig.name}`,
     description:
-      'Practical guides on Meta ads, tracking, creative and scaling for eCommerce brands, with charts and checklists you can use today.',
-    canonical: `${siteConfig.url}/blog`,
+      'Practical guides on ads, audiences, metrics, SEO, content and retention for eCommerce brands, with charts and checklists you can use today.',
+    // Filtered views are not separate pages; numbered pages are.
+    canonical: `${siteConfig.url}/blog${page > 1 && category === 'All' ? `?page=${page}` : ''}`,
     jsonLd: BLOG_JSON_LD,
   });
 
-  const categories = useMemo(() => ['All', ...new Set(posts.map((p) => p.category))], []);
-  const [category, setCategory] = useState('All');
-  const shown = category === 'All' ? posts : posts.filter((p) => p.category === category);
-  const [featured, ...rest] = shown;
+  // When the page or topic changes, bring the reader back to the top of the list, not the hero.
+  const listRef = useRef<HTMLDivElement>(null);
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [page, category]);
+
+  const hrefFor = (n: number) => {
+    const next = new URLSearchParams();
+    if (category !== 'All') next.set('topic', category);
+    if (n > 1) next.set('page', String(n));
+    const q = next.toString();
+    return q ? `?${q}` : '/blog';
+  };
+
+  const chooseCategory = (c: string) => {
+    setParams(c === 'All' ? {} : { topic: c }, { preventScrollReset: true });
+  };
 
   return (
     <div className="pt-8 pb-12 sm:pt-14">
@@ -51,26 +91,27 @@ export function BlogPage() {
             The Muvance playbook
           </span>
           <h1 className="mt-5 animate-fade-up font-serif text-[clamp(3rem,9vw,6.5rem)] leading-[0.92] tracking-[-0.02em] [animation-delay:80ms]">
-            Meta ads, <em>explained properly.</em>
+            Digital marketing, <em>explained properly.</em>
           </h1>
           <p className="mx-auto mt-6 max-w-xl animate-fade-up text-base text-balance text-neutral-500 [animation-delay:160ms] sm:text-lg">
-            Field-tested guides for eCommerce owners and media buyers. Visual, practical and
-            straight to the point.
+            {posts.length} field-tested guides on ads, audiences, metrics, SEO, content and
+            retention. Visual, practical and straight to the point.
           </p>
         </header>
 
         <div
+          ref={listRef}
           role="group"
           aria-label="Filter by topic"
-          className="mt-10 flex animate-fade-up justify-start gap-2 overflow-x-auto pb-2 [animation-delay:240ms] sm:justify-center"
+          className="mt-10 flex scroll-mt-24 animate-fade-up justify-start gap-2 overflow-x-auto pb-2 [animation-delay:240ms] sm:justify-center"
         >
-          {categories.map((c) => (
+          {CATEGORIES.map((c) => (
             <button
               key={c}
               type="button"
 
               aria-pressed={category === c}
-              onClick={() => setCategory(c)}
+              onClick={() => chooseCategory(c)}
               className={cn(
                 'shrink-0 rounded-full px-4 py-2 text-sm font-medium transition',
                 category === c
@@ -83,15 +124,17 @@ export function BlogPage() {
           ))}
         </div>
 
-        {featured && <FeaturedCard post={featured} />}
+        {featured && page === 1 && <FeaturedCard post={featured} />}
 
-        {rest.length > 0 && (
+        {cards.length > 0 && (
           <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {rest.map((p) => (
+            {cards.map((p) => (
               <PostCard key={p.slug} post={p} />
             ))}
           </div>
         )}
+
+        {pageCount > 1 && <Pagination page={page} pageCount={pageCount} hrefFor={hrefFor} />}
       </Container>
     </div>
   );
@@ -159,5 +202,86 @@ function PostCard({ post }: { post: BlogPost }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+/** Page numbers to show: first, last, the current page and its neighbours; null marks a gap. */
+function pageList(page: number, count: number): (number | null)[] {
+  const keep = [...new Set([1, count, page - 1, page, page + 1])]
+    .filter((n) => n >= 1 && n <= count)
+    .sort((a, b) => a - b);
+  const out: (number | null)[] = [];
+  let previous = 0;
+  for (const n of keep) {
+    if (previous && n - previous > 1) out.push(null);
+    out.push(n);
+    previous = n;
+  }
+  return out;
+}
+
+function Pagination({
+  page,
+  pageCount,
+  hrefFor,
+}: {
+  page: number;
+  pageCount: number;
+  hrefFor: (n: number) => string;
+}) {
+  const arrow =
+    'inline-flex h-11 items-center gap-2 rounded-full border border-black/5 bg-white/70 px-4 text-sm font-medium text-neutral-700 transition hover:bg-white';
+  const disabled = cn(arrow, 'pointer-events-none opacity-40');
+  return (
+    <nav aria-label="Blog pages" className="mt-12 flex items-center justify-center gap-2">
+      {page > 1 ? (
+        <Link to={hrefFor(page - 1)} preventScrollReset rel="prev" className={arrow}>
+          <ArrowLeft className="size-4" aria-hidden />
+          <span className="hidden sm:inline">Newer</span>
+        </Link>
+      ) : (
+        <span className={disabled} aria-hidden>
+          <ArrowLeft className="size-4" />
+          <span className="hidden sm:inline">Newer</span>
+        </span>
+      )}
+
+      <ol className="flex items-center gap-1">
+        {pageList(page, pageCount).map((n, i) =>
+          n === null ? (
+            <li key={`gap-${i}`} aria-hidden className="px-1 text-sm text-neutral-400">
+              …
+            </li>
+          ) : (
+            <li key={n}>
+              <Link
+                to={hrefFor(n)}
+                preventScrollReset
+                aria-label={`Page ${n}`}
+                aria-current={n === page ? 'page' : undefined}
+                className={cn(
+                  'grid size-11 place-items-center rounded-full text-sm font-medium transition',
+                  n === page ? 'bg-neutral-950 text-white' : 'text-neutral-600 hover:bg-white',
+                )}
+              >
+                {n}
+              </Link>
+            </li>
+          ),
+        )}
+      </ol>
+
+      {page < pageCount ? (
+        <Link to={hrefFor(page + 1)} preventScrollReset rel="next" className={arrow}>
+          <span className="hidden sm:inline">Older</span>
+          <ArrowRight className="size-4" aria-hidden />
+        </Link>
+      ) : (
+        <span className={disabled} aria-hidden>
+          <span className="hidden sm:inline">Older</span>
+          <ArrowRight className="size-4" />
+        </span>
+      )}
+    </nav>
   );
 }

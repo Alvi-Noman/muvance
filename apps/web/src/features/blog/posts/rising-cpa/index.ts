@@ -7,7 +7,7 @@ export const risingCpa: BlogPost = {
   description:
     'The six real causes of a rising CPA on Meta ads, how to spot each one in five minutes, and what to fix first.',
   category: 'Scaling',
-  published: '2026-11-14',
+  published: '2025-12-19',
   readMinutes: 8,
   cover: { glyph: 'line', tone: 'from-orange-200 via-amber-100 to-yellow-100', label: 'CPA' },
   toc: [

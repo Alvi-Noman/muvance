@@ -20,7 +20,7 @@ export const metaVsStoreSales: BlogPost = {
   description:
     'Ads Manager says 142 sales, your store says 97. The five real reasons the numbers differ, and a 7-step checklist to close the gap.',
   category: 'Tracking',
-  published: '2026-11-14',
+  published: '2025-02-01',
   readMinutes: 9,
   cover: { glyph: 'split', tone: 'from-amber-200 via-orange-100 to-rose-100', label: '−45' },
   toc,

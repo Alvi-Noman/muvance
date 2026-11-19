@@ -5,4 +5,4 @@ export { PostCover } from './components/PostCover';
 export { ReadingProgress } from './components/ReadingProgress';
 export { TableOfContents, MobileContents } from './components/TableOfContents';
 export { ShareBar } from './components/ShareBar';
-export { usePageMeta } from './use-page-meta';
+export { usePageMeta } from '@/hooks/use-page-meta';

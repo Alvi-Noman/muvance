@@ -7,7 +7,7 @@ export const cboVsAbo: BlogPost = {
   description:
     'How campaign budgets and ad set budgets move your money differently, and a simple setup that uses both.',
   category: 'Campaign setup',
-  published: '2026-11-14',
+  published: '2026-05-01',
   readMinutes: 6,
   cover: { glyph: 'bars', tone: 'from-sky-200 via-blue-100 to-indigo-100', label: 'CBO' },
   toc: [

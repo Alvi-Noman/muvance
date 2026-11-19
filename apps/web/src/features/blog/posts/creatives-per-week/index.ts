@@ -7,7 +7,7 @@ export const creativesPerWeek: BlogPost = {
   description:
     'Work out your number from spend, how long a winner lasts and your hit rate, then make more ads without a bigger budget.',
   category: 'Creative',
-  published: '2026-11-14',
+  published: '2026-01-27',
   readMinutes: 6,
   cover: { glyph: 'line', tone: 'from-amber-200 via-orange-100 to-red-100', label: 'Wk' },
   toc: [

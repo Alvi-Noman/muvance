@@ -7,7 +7,7 @@ export const seasonalPerformanceBangladesh: BlogPost = {
   description:
     'The yearly rhythm of ad costs in Bangladesh, courier cut-offs, and a playbook for every big season.',
   category: 'Bangladesh',
-  published: '2026-11-14',
+  published: '2025-05-15',
   readMinutes: 7,
   cover: { glyph: 'line', tone: 'from-rose-200 via-red-100 to-amber-100', label: 'Eid' },
   toc: [

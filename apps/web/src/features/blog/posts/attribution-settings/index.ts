@@ -7,7 +7,7 @@ export const attributionSettings: BlogPost = {
   description:
     'What each attribution setting counts, why your results change when you switch, and which to use for what.',
   category: 'Tracking',
-  published: '2026-11-14',
+  published: '2025-04-02',
   readMinutes: 6,
   cover: { glyph: 'bars', tone: 'from-blue-200 via-indigo-100 to-slate-100', label: '7d' },
   toc: [

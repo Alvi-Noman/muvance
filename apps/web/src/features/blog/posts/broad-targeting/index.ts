@@ -7,7 +7,7 @@ export const broadTargeting: BlogPost = {
   description:
     'When broad targeting beats interests, when it does not, and how to run a fair test on your own account before moving your budget.',
   category: 'Campaign setup',
-  published: '2026-11-14',
+  published: '2026-03-24',
   readMinutes: 7,
   cover: { glyph: 'line', tone: 'from-sky-200 via-cyan-100 to-emerald-100', label: 'Broad' },
   toc: [

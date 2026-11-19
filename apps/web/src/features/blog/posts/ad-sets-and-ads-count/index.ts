@@ -7,7 +7,7 @@ export const adSetsAndAdsCount: BlogPost = {
   description:
     'The 50-a-week rule, a calculator for your own budget, and practical limits on ads per ad set.',
   category: 'Campaign setup',
-  published: '2026-11-14',
+  published: '2025-04-14',
   readMinutes: 6,
   cover: { glyph: 'grid', tone: 'from-cyan-200 via-sky-100 to-blue-100', label: '50' },
   toc: [

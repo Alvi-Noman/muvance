@@ -7,7 +7,7 @@ export const landingPageFixes: BlogPost = {
   description:
     'Where ad visitors drop off, why speed matters so much on mobile, what belongs on the first screen, and a 10-point product page audit.',
   category: 'Conversion',
-  published: '2026-11-14',
+  published: '2026-07-08',
   readMinutes: 7,
   cover: { glyph: 'funnel', tone: 'from-fuchsia-200 via-purple-100 to-indigo-100', label: '10' },
   toc: [

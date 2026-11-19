@@ -7,7 +7,7 @@ export const creativeEnhancements: BlogPost = {
   description:
     'What each automatic enhancement does to your ads, where they help, where they hurt, and how to review them.',
   category: 'Creative',
-  published: '2026-11-14',
+  published: '2026-06-16',
   readMinutes: 6,
   cover: { glyph: 'grid', tone: 'from-pink-200 via-rose-100 to-orange-100', label: 'Auto' },
   toc: [

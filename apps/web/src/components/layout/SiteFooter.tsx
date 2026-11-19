@@ -16,7 +16,7 @@ export function SiteFooter({ minimal = false }: { minimal?: boolean }) {
         <div
           className={cn(
             'grid gap-12 border-b border-black/10 pb-16 md:grid-cols-2',
-            !minimal && 'lg:grid-cols-[1.2fr_0.8fr_1.4fr]',
+            !minimal && 'lg:grid-cols-[1.1fr_0.7fr_0.8fr_1.4fr]',
           )}
         >
           <div>
@@ -24,15 +24,16 @@ export function SiteFooter({ minimal = false }: { minimal?: boolean }) {
             <p className="mt-3 max-w-xs text-sm text-neutral-500">{siteConfig.tagline}</p>
           </div>
 
-          {!minimal && (
-            <FooterColumn title="Explore">
-              {siteConfig.nav.map((item) => (
-                <FooterLink key={item.href} href={item.href}>
-                  {item.label}
-                </FooterLink>
-              ))}
-            </FooterColumn>
-          )}
+          {!minimal &&
+            Object.entries(siteConfig.footerNav).map(([title, links]) => (
+              <FooterColumn key={title} title={title}>
+                {links.map((item) => (
+                  <FooterLink key={item.href} href={item.href}>
+                    {item.label}
+                  </FooterLink>
+                ))}
+              </FooterColumn>
+            ))}
 
           <FooterContact />
         </div>

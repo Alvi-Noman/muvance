@@ -56,6 +56,13 @@ export const router = createBrowserRouter([
           })),
       },
       {
+        path: 'applications',
+        lazy: () =>
+          import('@/features/applications/ApplicationsPage').then((m) => ({
+            Component: m.ApplicationsPage,
+          })),
+      },
+      {
         path: 'recordings',
         lazy: () =>
           import('@/features/recordings/RecordingsPage').then((m) => ({

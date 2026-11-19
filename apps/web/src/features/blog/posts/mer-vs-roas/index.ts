@@ -7,7 +7,7 @@ export const merVsRoas: BlogPost = {
   description:
     'The difference between what Meta claims and what your business earned, with a calculator and a weekly routine.',
   category: 'Scaling',
-  published: '2026-11-14',
+  published: '2025-08-19',
   readMinutes: 6,
   cover: { glyph: 'line', tone: 'from-teal-200 via-cyan-100 to-sky-100', label: 'MER' },
   toc: [

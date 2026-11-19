@@ -7,7 +7,7 @@ export const scaling: BlogPost = {
   description:
     'Vertical vs horizontal scaling, how fast to raise budgets, the guardrails that protect profit, and a step-by-step scaling playbook.',
   category: 'Scaling',
-  published: '2026-11-14',
+  published: '2025-04-06',
   readMinutes: 8,
   cover: { glyph: 'bars', tone: 'from-lime-200 via-emerald-100 to-teal-100', label: '2×' },
   toc: [

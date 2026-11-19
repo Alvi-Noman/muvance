@@ -1,6 +1,8 @@
 import type { Binary, ObjectId } from 'mongodb';
 import type {
   ActivityType,
+  Application,
+  ApplicationStatus,
   AvailabilitySettings,
   DiscoveryDto,
   LeadStage,
@@ -196,4 +198,16 @@ export interface SettingsDoc {
   availability: AvailabilitySettings;
   updatedAt: Date;
   updatedBy: ObjectId | null;
+}
+
+/** A form sent from the website's invest or training page (see applicationInputSchema). */
+export interface ApplicationDoc {
+  _id: ObjectId;
+  /** The answers as sent, minus the tracking ids. */
+  answers: Omit<Application, 'visitorId' | 'recordingId' | 'eventId'>;
+  status: ApplicationStatus;
+  visitorId: string | null;
+  recordingId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }

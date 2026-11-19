@@ -7,7 +7,7 @@ export const creativeTesting: BlogPost = {
   description:
     'A simple weekly system for testing ad creatives: concepts vs iterations, how much to spend before judging, and how to read the results.',
   category: 'Creative',
-  published: '2026-11-14',
+  published: '2026-01-22',
   readMinutes: 9,
   cover: { glyph: 'grid', tone: 'from-rose-200 via-pink-100 to-orange-100', label: 'Test' },
   toc: [

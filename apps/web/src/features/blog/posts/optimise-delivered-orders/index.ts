@@ -7,7 +7,7 @@ export const optimiseDeliveredOrders: BlogPost = {
   description:
     'Send a Delivered event through the Conversions API, report on it, and eventually let Meta learn from real buyers.',
   category: 'Tracking',
-  published: '2026-11-14',
+  published: '2026-02-26',
   readMinutes: 7,
   cover: { glyph: 'funnel', tone: 'from-emerald-200 via-teal-100 to-cyan-100', label: '✓' },
   toc: [

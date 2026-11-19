@@ -7,7 +7,7 @@ export const advantagePlusVsManual: BlogPost = {
   description:
     'What Advantage+ automates, when it beats a manual setup, what to watch inside it, and how to test the two fairly.',
   category: 'Campaign setup',
-  published: '2026-11-14',
+  published: '2026-07-11',
   readMinutes: 7,
   cover: { glyph: 'split', tone: 'from-indigo-200 via-violet-100 to-fuchsia-100', label: 'A+' },
   toc: [

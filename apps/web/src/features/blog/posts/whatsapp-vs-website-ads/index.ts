@@ -7,7 +7,7 @@ export const whatsappVsWebsiteAds: BlogPost = {
   description:
     'How chat sales work, when they beat website ads, what they could bring in, and how to track them.',
   category: 'Bangladesh',
-  published: '2026-11-14',
+  published: '2025-01-20',
   readMinutes: 7,
   cover: { glyph: 'funnel', tone: 'from-green-200 via-emerald-100 to-teal-100', label: 'Chat' },
   toc: [

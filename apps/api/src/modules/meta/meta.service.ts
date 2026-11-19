@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
-import type { CreateBookingInput, MetaBrowserEvent } from '@muvance/shared';
+import type { Application, CreateBookingInput, MetaBrowserEvent } from '@muvance/shared';
 import { env, isTest } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { phoneKey } from '@/modules/leads/leads.helpers';
@@ -127,6 +127,33 @@ export const metaService = {
     return send([
       { ...shared, event_name: 'Lead', event_id: `lead-${eventId}` },
       { ...shared, event_name: 'Schedule', event_id: `schedule-${eventId}` },
+    ]);
+  },
+
+  /**
+   * An investment or training application: Meta's SubmitApplication event, deliberately not a
+   * Lead, so it never mixes with the booked calls the lead campaigns optimise for.
+   */
+  trackApplication(req: Request, input: Application) {
+    const { fn, ln } = splitName(input.name);
+    return send([
+      {
+        event_name: 'SubmitApplication',
+        event_id: `application-${input.eventId ?? randomUUID()}`,
+        event_source_url: pageUrl(req),
+        user_data: {
+          ...visitorData(req),
+          ph: [sha256(normalizePhone(input.phone))],
+          fn: fn ? [sha256(fn)] : undefined,
+          ln: ln ? [sha256(ln)] : undefined,
+          country: [sha256('bd')],
+          external_id: [sha256(phoneKey(input.phone))],
+        },
+        custom_data: {
+          content_name: input.type === 'investment' ? 'Investment application' : 'Training',
+          content_category: 'Application',
+        },
+      },
     ]);
   },
 };

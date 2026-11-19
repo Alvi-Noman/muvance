@@ -3,6 +3,7 @@ import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import type {
   ActivityDoc,
+  ApplicationDoc,
   BlockedTimeDoc,
   DeviceDoc,
   InviteDoc,
@@ -73,6 +74,7 @@ export const collections = {
   recordings: () => getDb().collection<RecordingDoc>('recordings'),
   recordingChunks: () => getDb().collection<RecordingChunkDoc>('recordingChunks'),
   unfinishedBookings: () => getDb().collection<UnfinishedBookingDoc>('unfinishedBookings'),
+  applications: () => getDb().collection<ApplicationDoc>('applications'),
 };
 
 /** Brings data from earlier versions up to date. Safe to run on every start. */
@@ -187,6 +189,7 @@ async function ensureIndexes(database: Db) {
     database.collection('recordingChunks').createIndex({ recordingId: 1, seq: 1 }),
     database.collection('unfinishedBookings').createIndex({ status: 1, updatedAt: -1 }),
     database.collection('unfinishedBookings').createIndex({ phoneKey: 1 }),
+    database.collection('applications').createIndex({ createdAt: -1 }),
     database.collection('recordingChunks').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database.collection('leads').createIndex({ stage: 1, createdAt: -1 }),
     database.collection('leads').createIndex({ assigneeId: 1 }),

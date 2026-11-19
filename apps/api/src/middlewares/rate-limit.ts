@@ -35,3 +35,13 @@ export const apiLimiter = rateLimit({
   message,
   skip: () => isTest,
 });
+
+/** Stops spam on the website's invest and training forms: 10 per hour per IP. */
+export const applicationLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message,
+  skip: () => isTest,
+});

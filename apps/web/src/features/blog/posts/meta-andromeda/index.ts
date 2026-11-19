@@ -7,7 +7,7 @@ export const metaAndromeda: BlogPost = {
   description:
     'Meta rebuilt how it picks which ads people see. What Andromeda is, why creative is now your targeting, and the simple account structure that works with it.',
   category: 'Campaign setup',
-  published: '2026-11-14',
+  published: '2026-05-05',
   readMinutes: 8,
   cover: { glyph: 'grid', tone: 'from-violet-200 via-indigo-100 to-sky-100', label: 'AI' },
   toc: [

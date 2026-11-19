@@ -7,3 +7,5 @@ export { PromiseSection } from './components/sections/PromiseSection';
 export { ProcessSection } from './components/sections/ProcessSection';
 export { ServicesSection } from './components/sections/ServicesSection';
 export { RiskNote } from './components/shared/RiskNote';
+export { Reveal } from './components/shared/Reveal';
+export { SectionHeading } from './components/shared/SectionHeading';

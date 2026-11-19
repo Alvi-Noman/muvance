@@ -41,6 +41,30 @@ export const router = createBrowserRouter([
         lazy: () => import('@/pages/BlogPostPage').then((m) => ({ Component: m.BlogPostPage })),
       },
       {
+        path: 'services',
+        lazy: () => import('@/pages/ServicesPage').then((m) => ({ Component: m.ServicesPage })),
+      },
+      {
+        path: 'services/:slug',
+        lazy: () => import('@/pages/IndustryPage').then((m) => ({ Component: m.IndustryPage })),
+      },
+      {
+        path: 'how-we-work',
+        lazy: () => import('@/pages/HowWeWorkPage').then((m) => ({ Component: m.HowWeWorkPage })),
+      },
+      {
+        path: 'about',
+        lazy: () => import('@/pages/AboutPage').then((m) => ({ Component: m.AboutPage })),
+      },
+      {
+        path: 'get-funded',
+        lazy: () => import('@/pages/InvestPage').then((m) => ({ Component: m.InvestPage })),
+      },
+      {
+        path: 'training',
+        lazy: () => import('@/pages/TrainingPage').then((m) => ({ Component: m.TrainingPage })),
+      },
+      {
         path: 'thank-you',
         lazy: () => import('@/pages/ThankYouPage').then((m) => ({ Component: m.ThankYouPage })),
       },

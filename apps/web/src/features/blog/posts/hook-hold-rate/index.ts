@@ -7,7 +7,7 @@ export const hookHoldRate: BlogPost = {
   description:
     'The two video metrics that show exactly where your ad loses people, how to add them to Ads Manager, and how to fix each problem.',
   category: 'Creative',
-  published: '2026-11-14',
+  published: '2025-12-09',
   readMinutes: 7,
   cover: { glyph: 'line', tone: 'from-emerald-200 via-teal-100 to-lime-100', label: '3s' },
   toc: [

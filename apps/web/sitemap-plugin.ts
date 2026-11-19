@@ -7,9 +7,20 @@ export const SITE_URL = 'https://muvance.com';
 
 const STATIC_ROUTES = [
   { path: '/', priority: '1.0' },
+  { path: '/services', priority: '0.9' },
+  { path: '/how-we-work', priority: '0.8' },
+  { path: '/about', priority: '0.8' },
+  { path: '/get-funded', priority: '0.8' },
+  { path: '/training', priority: '0.7' },
   { path: '/blog', priority: '0.8' },
   { path: '/book', priority: '0.7' },
 ];
+
+/** Industry pages (/services/<slug>), read from their content file. */
+function readIndustries(industriesFile: string) {
+  const source = readFileSync(industriesFile, 'utf8');
+  return [...source.matchAll(/slug:\s*'([^']+)'/g)].map((m) => m[1]!);
+}
 
 /** Reads each blog post's slug and date straight from its source, so new posts are always listed. */
 function readPosts(postsDir: string) {
@@ -24,12 +35,18 @@ function readPosts(postsDir: string) {
 }
 
 function buildSitemap(postsDir: string) {
+  const industriesFile = join(postsDir, '../../company/content/industries.ts');
   const today = new Date().toISOString().slice(0, 10);
   const urls = [
     ...STATIC_ROUTES.map((r) => ({
       loc: `${SITE_URL}${r.path}`,
       lastmod: today,
       priority: r.priority,
+    })),
+    ...readIndustries(industriesFile).map((slug) => ({
+      loc: `${SITE_URL}/services/${slug}`,
+      lastmod: today,
+      priority: '0.8',
     })),
     ...readPosts(postsDir).map((p) => ({
       loc: `${SITE_URL}/blog/${p.slug}`,

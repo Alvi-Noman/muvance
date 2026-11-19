@@ -7,7 +7,7 @@ export const ugcStudioAi: BlogPost = {
   description:
     'What each style is good at, what it costs, and a simple test to find the right mix for your brand.',
   category: 'Creative',
-  published: '2026-11-14',
+  published: '2026-07-03',
   readMinutes: 7,
   cover: { glyph: 'grid', tone: 'from-yellow-200 via-amber-100 to-lime-100', label: 'UGC' },
   toc: [

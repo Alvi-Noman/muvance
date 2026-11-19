@@ -7,7 +7,7 @@ export const dailyBudgetNewBrand: BlogPost = {
   description:
     'Work out a starting budget from your price, margin and expected cost per sale, then spend in three phases.',
   category: 'Scaling',
-  published: '2026-11-14',
+  published: '2025-01-15',
   readMinutes: 6,
   cover: { glyph: 'bars', tone: 'from-lime-200 via-green-100 to-emerald-100', label: '৳/day' },
   toc: [

@@ -1,5 +1,9 @@
 import { Router } from 'express';
 import { requireAuth } from '@/middlewares/auth';
+import {
+  applicationsRouter,
+  applicationUploadRouter,
+} from '@/modules/applications/applications.routes';
 import { authRouter } from '@/modules/auth/auth.routes';
 import { availabilityRouter, bookingsRouter } from '@/modules/bookings/bookings.routes';
 import { dashboardRouter } from '@/modules/dashboard/dashboard.routes';
@@ -23,6 +27,7 @@ apiRouter.use('/auth', authRouter);
 apiRouter.use('/meta', metaRouter);
 apiRouter.use('/visits', recordingUploadRouter);
 apiRouter.use('/booking-drafts', unfinishedUploadRouter);
+apiRouter.use('/applications', applicationUploadRouter);
 
 // Admin (signed-in users; each route also checks role permissions)
 apiRouter.use('/dashboard', requireAuth, dashboardRouter);
@@ -31,5 +36,6 @@ apiRouter.use('/leads', requireAuth, leadsRouter);
 apiRouter.use('/meetings', requireAuth, meetingsRouter);
 apiRouter.use('/recordings', requireAuth, recordingsRouter);
 apiRouter.use('/unfinished-bookings', requireAuth, unfinishedRouter);
+apiRouter.use('/admin/applications', requireAuth, applicationsRouter);
 apiRouter.use('/team', requireAuth, teamRouter);
 apiRouter.use('/settings', requireAuth, settingsRouter);
