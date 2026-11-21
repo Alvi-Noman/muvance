@@ -77,6 +77,28 @@ export const router = createBrowserRouter([
           })),
       },
       {
+        path: 'invoice',
+        lazy: () =>
+          import('@/features/documents/InvoicePage').then((m) => ({
+            Component: () => (
+              <RequirePermission permission="settings:manage">
+                <m.InvoicePage />
+              </RequirePermission>
+            ),
+          })),
+      },
+      {
+        path: 'offer-letter',
+        lazy: () =>
+          import('@/features/documents/OfferLetterPage').then((m) => ({
+            Component: () => (
+              <RequirePermission permission="settings:manage">
+                <m.OfferLetterPage />
+              </RequirePermission>
+            ),
+          })),
+      },
+      {
         path: 'team',
         lazy: () =>
           import('@/features/team/TeamPage').then((m) => ({
