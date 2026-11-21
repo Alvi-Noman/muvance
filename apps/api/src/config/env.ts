@@ -53,6 +53,18 @@ const envSchema = z.object({
   /** Storage cap for recordings that didn't become a lead; the oldest are deleted first. */
   RECORDINGS_MAX_MB: z.coerce.number().int().min(10).max(100_000).default(300),
 
+  /** Public URL of the meetings app (meet.muvance.com), used to build meeting links. */
+  MEET_URL: z.url().default('http://localhost:5175'),
+  /**
+   * LiveKit, the media server behind meetings. LIVEKIT_URL is how the API reaches it (inside the
+   * Docker network in production); browsers reach it through the meetings site at /rtc. The
+   * defaults match the local LiveKit in docker-compose.yml. Production uses its own key and secret
+   * (deploy.sh creates them on the server).
+   */
+  LIVEKIT_URL: z.url().default('http://localhost:7880'),
+  LIVEKIT_API_KEY: z.string().min(1).default('devkey'),
+  LIVEKIT_API_SECRET: z.string().min(32).default('muvance-local-livekit-secret-0123456789'),
+
   TRUST_PROXY: z
     .string()
     .default('false')
@@ -71,6 +83,11 @@ export const env = parsed.data;
 export const isProduction = env.NODE_ENV === 'production';
 export const isTest = env.NODE_ENV === 'test';
 export const cookieSecure = env.COOKIE_SECURE ?? isProduction;
+
+// Without them meetings don't work, but the website and bookings must keep running, so only warn.
+if (isProduction && (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET)) {
+  console.warn('LIVEKIT_API_KEY and LIVEKIT_API_SECRET are not set: meetings will not work.');
+}
 
 if (isProduction && env.MONGODB_URI === 'memory') {
   console.error('MONGODB_URI must point at a real database in production.');

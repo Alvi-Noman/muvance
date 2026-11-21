@@ -6,3 +6,4 @@ export * from './schemas/tracking';
 export * from './schemas/recordings';
 export * from './schemas/unfinished';
 export * from './schemas/applications';
+export * from './schemas/meet';

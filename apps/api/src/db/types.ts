@@ -211,3 +211,31 @@ export interface ApplicationDoc {
   createdAt: Date;
   updatedAt: Date;
 }
+
+/** A video meeting at meet.muvance.com. The link (code) works for as long as the room exists. */
+export interface MeetRoomDoc {
+  _id: ObjectId;
+  code: string;
+  title: string | null;
+  createdBy: ObjectId;
+  createdByName: string;
+  /** Anyone with the link joins without asking. Off: guests ask, a team member admits them. */
+  quickAccess: boolean;
+  createdAt: Date;
+  lastJoinedAt: Date | null;
+}
+
+/** A guest asking to join a meeting. Deleted automatically a day after it was made. */
+export interface MeetJoinRequestDoc {
+  /** Random and unguessable: the guest's proof that this request is theirs. */
+  _id: string;
+  code: string;
+  name: string;
+  status: 'pending' | 'admitted' | 'denied';
+  /** The guest's identity in the call, fixed once so a page refresh rejoins as the same person. */
+  identity: string;
+  createdAt: Date;
+  /** The guest's page checks in every few seconds; requests nobody is waiting on are hidden. */
+  lastSeenAt: Date;
+  decidedAt: Date | null;
+}

@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-logo: 'Sora', 'Inter', ui-sans-serif, sans-serif;
+
+  /* The website's off-white, for the home page and lobby. */
+  --color-canvas: #f2f1ed;
+  /* The call itself is dark, so faces and screens stand out. */
+  --color-call: #0f0f10;
+  --color-tile: #232326;
+  --color-raised: #2c2c30;
+
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-float-up: float-up 3.2s ease-out forwards;
+  --animate-knock: knock 0.5s ease-in-out;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      translate: 0 12px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+
+  @keyframes float-up {
+    0% {
+      opacity: 0;
+      translate: 0 0;
+      scale: 0.6;
+    }
+    10% {
+      opacity: 1;
+      scale: 1;
+    }
+    80% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      translate: var(--drift, 0) -70vh;
+    }
+  }
+
+  @keyframes knock {
+    0%,
+    100% {
+      rotate: 0deg;
+    }
+    25% {
+      rotate: -12deg;
+    }
+    75% {
+      rotate: 12deg;
+    }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-neutral-950 antialiased;
+  }
+}

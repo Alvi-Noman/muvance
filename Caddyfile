@@ -1,13 +1,7 @@
 # Routes each Muvance domain to the right container. Addresses come from environment variables:
-#   production: SITE_ADDRESS=http://muvance.com  ADMIN_ADDRESS=http://admin.muvance.com …
+#   production: SITE_ADDRESS=muvance.com  ADMIN_ADDRESS=admin.muvance.com  MEET_ADDRESS=meet.muvance.com …
 #   local:      SITE_ADDRESS=http://localhost:8180  ADMIN_ADDRESS=http://localhost:8181 …
-# In production HTTPS is handled in front of this by the server's main Caddy (see DEPLOY.md).
-{
-	servers {
-		# Keep the visitor's real IP from the main Caddy; this port isn't reachable from the internet.
-		trusted_proxies static private_ranges
-	}
-}
+# In production Caddy gets HTTPS certificates for these domains itself and redirects HTTP to HTTPS.
 
 (security_headers) {
 	header {
@@ -49,5 +43,27 @@
 	import api
 	handle {
 		reverse_proxy admin:80
+	}
+}
+
+# Video meetings. Camera, microphone and screen sharing are allowed here (and only here).
+{$MEET_ADDRESS} {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self), microphone=(self), display-capture=(self), geolocation=()"
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+	import api
+	# LiveKit's signalling WebSocket. Audio and video don't pass through here.
+	handle /rtc* {
+		reverse_proxy livekit:7880
+	}
+	handle {
+		encode zstd gzip
+		reverse_proxy meet:80
 	}
 }

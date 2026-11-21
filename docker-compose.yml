@@ -1,6 +1,7 @@
 # Production-like stack on your machine, built from source (with a local MongoDB):
 #   docker compose up --build
-# Website: http://localhost:8180   Admin: http://localhost:8181
+# Website: http://localhost:8180   Admin: http://localhost:8181   Meetings: http://localhost:8183
+# For `npm run dev` instead, start just the media server for meetings: docker compose up -d livekit
 # Create the first owner:
 #   docker compose exec api node dist/create-owner.js --email you@example.com
 
@@ -31,7 +32,12 @@ services:
       # Plain HTTP locally, so the session cookie can't be HTTPS-only.
       COOKIE_SECURE: 'false'
       ADMIN_URL: http://localhost:8181
-      CORS_ORIGIN: http://localhost:8180,http://localhost:8181
+      CORS_ORIGIN: http://localhost:8180,http://localhost:8181,http://localhost:8183
+      MEET_URL: http://localhost:8183
+      LIVEKIT_URL: http://livekit:7880
+      # Local-only values; production's are made by deploy.sh on the server.
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: muvance-local-livekit-secret-0123456789
     depends_on:
       mongo:
         condition: service_healthy
@@ -53,16 +59,41 @@ services:
         APP: admin
     restart: unless-stopped
 
+  meet:
+    build:
+      context: .
+      dockerfile: docker/spa.Dockerfile
+      args:
+        APP: meet
+    restart: unless-stopped
+
+  # Media server for meetings. Also used by `npm run dev` (the API's defaults match these keys).
+  livekit:
+    image: livekit/livekit-server:v1.13.11
+    # On this machine browsers reach it at 127.0.0.1.
+    command: --config /etc/livekit.yaml --node-ip 127.0.0.1
+    environment:
+      LIVEKIT_KEYS: 'devkey: muvance-local-livekit-secret-0123456789'
+    volumes:
+      - ./deploy/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - '127.0.0.1:7880:7880'
+      - '127.0.0.1:7881:7881/tcp'
+      - '127.0.0.1:7882:7882/udp'
+    restart: unless-stopped
+
   caddy:
     image: caddy:2.10-alpine
     environment:
       SITE_ADDRESS: http://localhost:8180
       ADMIN_ADDRESS: http://localhost:8181
       WWW_ADDRESS: http://localhost:8182
+      MEET_ADDRESS: http://localhost:8183
       SITE_URL: http://localhost:8180
     ports:
       - '8180:8180'
       - '8181:8181'
+      - '8183:8183'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
@@ -71,6 +102,8 @@ services:
       web:
         condition: service_healthy
       admin:
+        condition: service_healthy
+      meet:
         condition: service_healthy
     restart: unless-stopped
 

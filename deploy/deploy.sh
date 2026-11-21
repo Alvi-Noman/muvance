@@ -9,8 +9,23 @@ COMPOSE="docker compose --env-file .env.production -f compose.production.yml"
 PREVIOUS="$(cat .deployed-tag 2>/dev/null || true)"
 
 echo "Deploying $TAG (previous: ${PREVIOUS:-none})"
-# The network the server's main Caddy uses to reach this stack.
-docker network inspect shared-edge > /dev/null 2>&1 || docker network create shared-edge > /dev/null
+
+# Meetings: LiveKit's API key and secret, made once on this server and kept (never in the repo).
+if [ ! -f runtime/livekit.env ]; then
+  mkdir -p runtime
+  KEY="API$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  SECRET="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  (
+    umask 077
+    {
+      echo "LIVEKIT_API_KEY=$KEY"
+      echo "LIVEKIT_API_SECRET=$SECRET"
+      echo "LIVEKIT_KEYS=$KEY: $SECRET"
+    } > runtime/livekit.env
+  )
+  echo "Created runtime/livekit.env (LiveKit key and secret)"
+fi
+
 IMAGE_TAG="$TAG" $COMPOSE pull
 
 if IMAGE_TAG="$TAG" $COMPOSE up -d --remove-orphans --wait --wait-timeout 180; then
