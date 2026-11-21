@@ -13,7 +13,7 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: num
           key={t.id}
           className="animate-fade-up pointer-events-auto flex max-w-sm items-center gap-3 rounded-2xl bg-raised py-3 pr-2 pl-4 text-sm text-white shadow-2xl ring-1 ring-white/10"
         >
-          <span className="line-clamp-2 flex-1">{t.text}</span>
+          <span className="line-clamp-5 flex-1">{t.text}</span>
           {t.action && (
             <button
               type="button"

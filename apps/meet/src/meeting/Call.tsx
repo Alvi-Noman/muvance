@@ -130,12 +130,17 @@ export function Call({
         if (p.audioEnabled) {
           await local
             .setMicrophoneEnabled(true, { deviceId: p.audioDeviceId || undefined })
-            .catch(() => {});
+            .catch(() => (p.audioDeviceId ? local.setMicrophoneEnabled(true) : undefined))
+            .catch((error: unknown) => console.error('Microphone failed', error));
         }
         if (p.videoEnabled) {
           const pub = await local
             .setCameraEnabled(true, { deviceId: p.videoDeviceId || undefined })
-            .catch(() => undefined);
+            .catch(() => (p.videoDeviceId ? local.setCameraEnabled(true) : undefined))
+            .catch((error: unknown) => {
+              console.error('Camera failed', error);
+              return undefined;
+            });
           const track = pub?.track as LocalVideoTrack | undefined;
           if (track && p.blur !== 'off') void applyBlur(track, p.blur).catch(() => {});
         }
@@ -232,7 +237,9 @@ function CallScreen({
   const toast = useCallback((text: string, action?: Toast['action']) => {
     const id = nextId++;
     setToasts((list) => [...list.slice(-2), { id, text, action }]);
-    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), 5000);
+    // Long messages (how to fix a blocked microphone) stay up long enough to read.
+    const ms = text.length > 90 ? 15000 : 5000;
+    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), ms);
   }, []);
 
   const showReaction = useCallback((emoji: string, name: string) => {

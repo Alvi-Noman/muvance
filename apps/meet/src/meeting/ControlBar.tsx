@@ -26,6 +26,7 @@ import {
 import { MEET_MAX_PARTICIPANTS } from '@muvance/shared';
 import { applyBlur } from '@/lib/blur';
 import { cn } from '@/lib/cn';
+import { isMissingDevice, mediaErrorMessage } from '@/lib/media-errors';
 import { useCall, type Panel } from './call-context';
 import { MenuButton } from './Tile';
 
@@ -88,12 +89,20 @@ export function ControlBar() {
     setBusy('mic');
     if (isMicrophoneEnabled) call.markSelfMuted();
     try {
-      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled, {
-        deviceId: prefs.audioDeviceId || undefined,
-      });
+      try {
+        await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled, {
+          deviceId: prefs.audioDeviceId || undefined,
+        });
+      } catch (error) {
+        if (!prefs.audioDeviceId || !isMissingDevice(error)) throw error;
+        // The saved microphone is gone: use the default one and forget the old choice.
+        updatePrefs({ audioDeviceId: '' });
+        await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
+      }
       updatePrefs({ audioEnabled: !isMicrophoneEnabled });
-    } catch {
-      call.toast("Couldn't turn on your microphone. Check your browser's permissions.");
+    } catch (error) {
+      console.error('Microphone failed', error);
+      call.toast(mediaErrorMessage(error, 'microphone'));
     } finally {
       setBusy(null);
     }
@@ -103,15 +112,23 @@ export function ControlBar() {
     if (busy) return;
     setBusy('cam');
     try {
-      const pub = await localParticipant.setCameraEnabled(!isCameraEnabled, {
-        deviceId: prefs.videoDeviceId || undefined,
-      });
+      let pub;
+      try {
+        pub = await localParticipant.setCameraEnabled(!isCameraEnabled, {
+          deviceId: prefs.videoDeviceId || undefined,
+        });
+      } catch (error) {
+        if (!prefs.videoDeviceId || !isMissingDevice(error)) throw error;
+        updatePrefs({ videoDeviceId: '' });
+        pub = await localParticipant.setCameraEnabled(!isCameraEnabled);
+      }
       updatePrefs({ videoEnabled: !isCameraEnabled });
       if (!isCameraEnabled && prefs.blur !== 'off' && pub?.videoTrack) {
         void applyBlur(pub.videoTrack, prefs.blur).catch(() => {});
       }
-    } catch {
-      call.toast("Couldn't turn on your camera. Check your browser's permissions.");
+    } catch (error) {
+      console.error('Camera failed', error);
+      call.toast(mediaErrorMessage(error, 'camera'));
     } finally {
       setBusy(null);
     }

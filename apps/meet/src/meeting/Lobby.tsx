@@ -7,6 +7,7 @@ import { Header } from '@/components/Header';
 import { Avatar, Button, Spinner } from '@/components/ui';
 import { applyBlur, blurSupported } from '@/lib/blur';
 import { cn } from '@/lib/cn';
+import { isMissingDevice, mediaErrorMessage } from '@/lib/media-errors';
 import type { BlurLevel, MeetPrefs } from '@/lib/prefs';
 import { DeviceSelect } from './DeviceSelect';
 import { usePreviewTrack } from './use-preview-track';
@@ -17,18 +18,6 @@ const blurLabels: Record<BlurLevel, string> = {
   strong: 'Strong blur',
 };
 const nextBlur: Record<BlurLevel, BlurLevel> = { off: 'light', light: 'strong', strong: 'off' };
-
-function deviceMessage(error: Error | null, what: 'camera' | 'microphone') {
-  if (!error) return '';
-  if (error.name === 'NotAllowedError') {
-    return `Your ${what} is blocked. Allow it from the icon in your browser's address bar.`;
-  }
-  if (error.name === 'NotFoundError') return `No ${what} found.`;
-  if (error.name === 'NotReadableError') {
-    return `Your ${what} is being used by another app. Close it and try again.`;
-  }
-  return `Couldn't start your ${what}.`;
-}
 
 export function Lobby({
   info,
@@ -62,6 +51,14 @@ export function Lobby({
   useEffect(() => {
     void blurSupported().then(setCanBlur);
   }, []);
+
+  // A saved device that's gone (unplugged, or its id changed): fall back to the default one.
+  useEffect(() => {
+    if (prefs.videoDeviceId && isMissingDevice(camera.error)) updatePrefs({ videoDeviceId: '' });
+  }, [camera.error, prefs.videoDeviceId, updatePrefs]);
+  useEffect(() => {
+    if (prefs.audioDeviceId && isMissingDevice(mic.error)) updatePrefs({ audioDeviceId: '' });
+  }, [mic.error, prefs.audioDeviceId, updatePrefs]);
 
   useEffect(() => {
     const track = camera.track;
@@ -111,7 +108,7 @@ export function Lobby({
             {!showVideo && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center text-white/80">
                 {camera.error ? (
-                  <p className="max-w-sm text-sm">{deviceMessage(camera.error, 'camera')}</p>
+                  <p className="max-w-sm text-sm">{mediaErrorMessage(camera.error, 'camera')}</p>
                 ) : prefs.videoEnabled ? (
                   <Spinner className="size-7" />
                 ) : (
@@ -169,7 +166,9 @@ export function Lobby({
           </div>
 
           {mic.error && (
-            <p className="mt-3 text-sm text-red-600">{deviceMessage(mic.error, 'microphone')}</p>
+            <p className="mt-3 text-sm text-red-600">
+              {mediaErrorMessage(mic.error, 'microphone')}
+            </p>
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">
