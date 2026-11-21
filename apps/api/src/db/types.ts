@@ -252,7 +252,7 @@ export interface CallRecordingDoc {
   startedAt: Date;
   endedAt: Date | null;
   status: 'recording' | 'processing' | 'ready' | 'failed';
-  /** Path relative to CALL_RECORDINGS_DIR, e.g. "abc-defg-hij/2026-11-21T15-04-05.mp4". */
+  /** File name in CALL_RECORDINGS_DIR, e.g. "abc-defg-hij_2026-11-21T15-04-05-000Z.mp4". */
   file: string;
   durationSec: number | null;
   sizeBytes: number | null;

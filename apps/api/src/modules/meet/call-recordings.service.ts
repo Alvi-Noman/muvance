@@ -1,4 +1,4 @@
-import { statfs, unlink, rm, readdir } from 'node:fs/promises';
+import { statfs, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { ObjectId } from 'mongodb';
 import type { CallRecordingDto, MeetRecordingStateDto } from '@muvance/shared';
@@ -98,7 +98,9 @@ export const callRecordingsService = {
     }
 
     const startedAt = new Date();
-    const file = `${code}/${startedAt.toISOString().replace(/[:.]/g, '-')}.mp4`;
+    // All in one folder: the recorder and the API run as different users, and the API may only
+    // delete files in folders it can write to (not ones the recorder creates).
+    const file = `${code}_${startedAt.toISOString().replace(/[:.]/g, '-')}.mp4`;
     const egress = await recorder.start(code, file);
     const doc: CallRecordingDoc = {
       _id: new ObjectId(),
@@ -151,11 +153,19 @@ export const callRecordingsService = {
 
   async remove(doc: CallRecordingDoc) {
     if (doc.status === 'recording') await recorder.stop(doc.egressId);
-    await unlink(recordingPath(doc)).catch(() => {});
+    try {
+      await unlink(recordingPath(doc));
+    } catch (error) {
+      // Already gone is fine; anything else would leave the video taking up disk space.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.error({ err: error, file: doc.file }, 'Could not delete a call recording file');
+        throw new HttpError(500, "Couldn't delete the video file. Please try again.");
+      }
+    }
     await collections.callRecordings().deleteOne({ _id: doc._id });
   },
 
-  /** Deletes recordings past the retention period, and empty folders. Runs daily. */
+  /** Deletes recordings past the retention period. Runs daily. */
   async cleanUp() {
     const cutoff = new Date(Date.now() - env.CALL_RECORDINGS_RETENTION_DAYS * 86_400_000);
     const old = await collections
@@ -164,13 +174,5 @@ export const callRecordingsService = {
       .toArray();
     for (const doc of old) await this.remove(doc);
     if (old.length) logger.info({ count: old.length }, 'Deleted old call recordings');
-
-    const folders = await readdir(root(), { withFileTypes: true }).catch(() => []);
-    for (const folder of folders.filter((f) => f.isDirectory())) {
-      const full = path.join(root(), folder.name);
-      if ((await readdir(full).catch(() => ['x'])).length === 0) {
-        await rm(full, { recursive: true }).catch(() => {});
-      }
-    }
   },
 };
