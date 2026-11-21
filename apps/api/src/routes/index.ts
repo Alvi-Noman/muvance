@@ -13,6 +13,7 @@ import { leadsRouter } from '@/modules/leads/leads.routes';
 import { metaRouter } from '@/modules/meta/meta.routes';
 import { recordingsRouter, recordingUploadRouter } from '@/modules/recordings/recordings.routes';
 import { unfinishedRouter, unfinishedUploadRouter } from '@/modules/unfinished/unfinished.routes';
+import { meetRouter } from '@/modules/meet/meet.routes';
 import { meetingsRouter } from '@/modules/meetings/meetings.routes';
 import { settingsRouter } from '@/modules/settings/settings.routes';
 import { teamRouter } from '@/modules/team/team.routes';
@@ -28,6 +29,8 @@ apiRouter.use('/meta', metaRouter);
 apiRouter.use('/visits', recordingUploadRouter);
 apiRouter.use('/booking-drafts', unfinishedUploadRouter);
 apiRouter.use('/applications', applicationUploadRouter);
+// Video meetings: public for guests with the link; each route checks sign-in where needed.
+apiRouter.use('/meet', meetRouter);
 
 // Admin (signed-in users; each route also checks role permissions)
 apiRouter.use('/dashboard', requireAuth, dashboardRouter);

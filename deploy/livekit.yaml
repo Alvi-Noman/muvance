@@ -1,0 +1,23 @@
+# LiveKit: the media server behind meet.muvance.com (audio, video, screen sharing, chat).
+# Keys are not in this file: they come from LIVEKIT_KEYS in runtime/livekit.env, which deploy.sh
+# creates on the server the first time.
+#
+# Browsers reach LiveKit two ways:
+#   - signalling (a WebSocket) at https://meet.muvance.com/rtc, through the Caddy proxies;
+#   - media, directly on this server's public IP: UDP 7882, or TCP 7881 where UDP is blocked.
+#     These two ports must be open in the server's firewall (see DEPLOY.md).
+port: 7880
+rtc:
+  tcp_port: 7881
+  # One UDP port for every call (instead of a range), so the firewall stays simple.
+  udp_port: 7882
+  # Find the server's public IP and give that to browsers (it's behind Docker's network).
+  use_external_ip: true
+room:
+  # The same cap the API checks before letting anyone in.
+  max_participants: 5
+  # Close a call 5 minutes after the last person leaves. There is no time limit while people are in it.
+  empty_timeout: 300
+  departure_timeout: 60
+logging:
+  level: info

@@ -1,7 +1,7 @@
 # Production stack (runs on the VPS). Images are built by GitHub Actions and pulled from GHCR.
 # MongoDB is external (MongoDB Atlas). See DEPLOY.md.
-# This server is shared with Qravy, whose Caddy owns ports 80/443 and passes Muvance's domains to the
-# "muvance-proxy" container over the shared-edge network. Nothing here is published to the internet.
+# Muvance has this server to itself: Caddy owns ports 80/443 and gets HTTPS certificates for every
+# domain automatically. LiveKit (meetings) also publishes its media ports. Nothing else is public.
 #   IMAGE_TAG=sha-<commit> docker compose --env-file .env.production -f compose.production.yml up -d --wait
 
 x-logging: &logging
@@ -14,23 +14,29 @@ services:
   caddy:
     image: caddy:2.10-alpine
     environment:
-      SITE_ADDRESS: http://${SITE_DOMAIN:?Set SITE_DOMAIN in .env.production}
-      ADMIN_ADDRESS: http://${ADMIN_DOMAIN:?Set ADMIN_DOMAIN in .env.production}
-      WWW_ADDRESS: http://www.${SITE_DOMAIN}
+      # Plain domain names: Caddy gets and renews their HTTPS certificates itself.
+      SITE_ADDRESS: ${SITE_DOMAIN:?Set SITE_DOMAIN in .env.production}
+      ADMIN_ADDRESS: ${ADMIN_DOMAIN:?Set ADMIN_DOMAIN in .env.production}
+      WWW_ADDRESS: www.${SITE_DOMAIN}
+      MEET_ADDRESS: meet.${SITE_DOMAIN}
       SITE_URL: https://${SITE_DOMAIN}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp' # HTTP/3
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-    networks:
-      default:
-      shared-edge:
-        aliases:
-          - muvance-proxy
+      # Certificates. Kept between deploys, so Caddy doesn't ask for new ones every time.
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       api:
         condition: service_healthy
       web:
         condition: service_healthy
       admin:
+        condition: service_healthy
+      meet:
         condition: service_healthy
     restart: unless-stopped
     logging: *logging
@@ -39,15 +45,19 @@ services:
     image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX in .env.production}/muvance-api:${IMAGE_TAG:-prod}
     env_file:
       - ${API_ENV_FILE:-./runtime/api.env}
+      # LiveKit's key and secret, created by deploy.sh the first time.
+      - ./runtime/livekit.env
     environment:
       NODE_ENV: production
       PORT: '4000'
-      # Two proxies in front: Qravy's Caddy, then Muvance's.
-      TRUST_PROXY: '2'
+      # One proxy in front: Caddy.
+      TRUST_PROXY: '1'
       COOKIE_SECURE: 'true'
       ADMIN_URL: https://${ADMIN_DOMAIN}
       SITE_URL: https://${SITE_DOMAIN}
-      CORS_ORIGIN: https://${SITE_DOMAIN},https://${ADMIN_DOMAIN}
+      MEET_URL: https://meet.${SITE_DOMAIN}
+      LIVEKIT_URL: http://livekit:7880
+      CORS_ORIGIN: https://${SITE_DOMAIN},https://${ADMIN_DOMAIN},https://meet.${SITE_DOMAIN}
     restart: unless-stopped
     logging: *logging
 
@@ -61,6 +71,32 @@ services:
     restart: unless-stopped
     logging: *logging
 
-networks:
-  shared-edge:
-    external: true
+  # Video meetings (meet.<site domain>).
+  meet:
+    image: ${IMAGE_PREFIX}/muvance-meet:${IMAGE_TAG:-prod}
+    restart: unless-stopped
+    logging: *logging
+
+  # LiveKit, the media server for meetings. Signalling goes through Caddy (/rtc); audio and video
+  # go straight to these two published ports, which must be open in the firewall (see DEPLOY.md).
+  livekit:
+    image: livekit/livekit-server:v1.13.11
+    command: --config /etc/livekit.yaml
+    env_file:
+      - ./runtime/livekit.env
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - '7881:7881/tcp'
+      - '7882:7882/udp'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:7880']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -6,6 +6,7 @@ Marketing website, call booking and a CRM for the Muvance agency, in one TypeScr
 | ----------------- | --------------------- | ----------------------------------------------------------------- |
 | `apps/web`        | http://localhost:5173 | Public landing page + `/book` call booking + `/thank-you`         |
 | `apps/admin`      | http://localhost:5174 | CRM: leads, pipeline, meetings, team & roles, booking settings    |
+| `apps/meet`       | http://localhost:5175 | Video meetings (meet.muvance.com): up to 5 people, no time limit  |
 | `apps/api`        | http://localhost:4000 | Express API: bookings, auth, CRM (MongoDB)                        |
 | `packages/shared` | –                     | Zod schemas, roles/permissions and types shared by all three apps |
 
@@ -43,7 +44,27 @@ npm run docker:up        # builds and starts mongo, api, web, admin and caddy
 docker compose exec api node dist/create-owner.js --email you@example.com
 ```
 
-Website: http://localhost:8180 · Admin: http://localhost:8181 · Stop with `npm run docker:down`.
+Website: http://localhost:8180 · Admin: http://localhost:8181 · Meetings: http://localhost:8183 ·
+Stop with `npm run docker:down`.
+
+### Meetings (meet.muvance.com)
+
+Video calls run on [LiveKit](https://livekit.io), an open-source media server we host ourselves.
+For `npm run dev`, start it once with `docker compose up -d livekit` (the API's defaults match its
+keys), then open http://localhost:5175. Team members sign in with their admin account to start
+meetings and let guests in; guests just open the link.
+
+| Feature       | How it works                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------ |
+| Meeting links | `meet.muvance.com/abc-defg-hij`. "New meeting" (team only) starts one now or makes one for later |
+| Lobby         | Camera preview, mic level, device pickers, background blur, who's already in the call            |
+| Guests        | Ask to join; a team member in the call admits or denies them. **Quick access** skips this        |
+| In the call   | Up to 5 people, no time limit: mic, camera, screen sharing, raise hand, reactions, chat          |
+| Layout        | Automatic grid; whoever presents is shown large; pin anyone; hide or mirror your own video       |
+| Hosts (team)  | Mute someone or everyone, remove a guest, lower hands, end the call for everyone                 |
+| Shortcuts     | Ctrl+D mic, Ctrl+E camera, Ctrl+Alt+H hand, Ctrl+Alt+C chat, Ctrl+Alt+P people (⌘ on a Mac)      |
+
+Not included: recording and live captions (they need extra services).
 
 ## Scripts (run from the root)
 

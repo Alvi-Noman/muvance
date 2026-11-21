@@ -9,6 +9,8 @@ import type {
   InviteDoc,
   LeadDoc,
   MeetingDoc,
+  MeetJoinRequestDoc,
+  MeetRoomDoc,
   RecordingChunkDoc,
   RecordingDoc,
   SessionDoc,
@@ -75,6 +77,8 @@ export const collections = {
   recordingChunks: () => getDb().collection<RecordingChunkDoc>('recordingChunks'),
   unfinishedBookings: () => getDb().collection<UnfinishedBookingDoc>('unfinishedBookings'),
   applications: () => getDb().collection<ApplicationDoc>('applications'),
+  meetRooms: () => getDb().collection<MeetRoomDoc>('meetRooms'),
+  meetJoinRequests: () => getDb().collection<MeetJoinRequestDoc>('meetJoinRequests'),
 };
 
 /** Brings data from earlier versions up to date. Safe to run on every start. */
@@ -190,6 +194,12 @@ async function ensureIndexes(database: Db) {
     database.collection('unfinishedBookings').createIndex({ status: 1, updatedAt: -1 }),
     database.collection('unfinishedBookings').createIndex({ phoneKey: 1 }),
     database.collection('applications').createIndex({ createdAt: -1 }),
+    database.collection('meetRooms').createIndex({ code: 1 }, { unique: true }),
+    database.collection('meetRooms').createIndex({ createdBy: 1, createdAt: -1 }),
+    database.collection('meetJoinRequests').createIndex({ code: 1, status: 1 }),
+    database
+      .collection('meetJoinRequests')
+      .createIndex({ createdAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 }),
     database.collection('recordingChunks').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database.collection('leads').createIndex({ stage: 1, createdAt: -1 }),
     database.collection('leads').createIndex({ assigneeId: 1 }),

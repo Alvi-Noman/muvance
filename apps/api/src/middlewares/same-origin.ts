@@ -3,7 +3,11 @@ import { env } from '@/config/env';
 import { HttpError } from '@/utils/http-error';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const allowedOrigins = new Set([...env.CORS_ORIGIN.split(','), new URL(env.ADMIN_URL).origin]);
+const allowedOrigins = new Set([
+  ...env.CORS_ORIGIN.split(','),
+  new URL(env.ADMIN_URL).origin,
+  new URL(env.MEET_URL).origin,
+]);
 
 /**
  * CSRF defence in depth (on top of SameSite=Strict cookies): state-changing requests that
