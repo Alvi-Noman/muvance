@@ -56,6 +56,13 @@ IMAGE_TAG="$TAG" $COMPOSE pull
 if IMAGE_TAG="$TAG" $COMPOSE up -d --remove-orphans --wait --wait-timeout 180; then
   # Pick up Caddyfile changes without downtime.
   $COMPOSE exec -T caddy caddy reload --config /etc/caddy/Caddyfile || $COMPOSE restart caddy
+  # LiveKit and the recorder only read their settings files at start: restart them when those
+  # change (this briefly drops any call in progress, so only then).
+  MEDIA_CONFIG="$(cat livekit.yaml runtime/egress.yaml | cksum)"
+  if [ "$MEDIA_CONFIG" != "$(cat .media-config 2>/dev/null || true)" ]; then
+    $COMPOSE restart livekit egress
+    echo "$MEDIA_CONFIG" > .media-config
+  fi
   echo "$TAG" > .deployed-tag
   docker image prune -f > /dev/null
   echo "Deployed $TAG"
