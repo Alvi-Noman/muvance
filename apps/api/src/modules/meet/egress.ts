@@ -26,6 +26,7 @@ export interface EgressState {
   durationSec: number | null;
   sizeBytes: number | null;
   error: string | null;
+  limitReached: boolean;
 }
 
 function toState(info: EgressInfo): EgressState {
@@ -47,6 +48,7 @@ function toState(info: EgressInfo): EgressState {
       file && file.duration > 0n ? Math.round(Number(file.duration / 1_000_000_000n)) : null,
     sizeBytes: file && file.size > 0n ? Number(file.size) : null,
     error: info.error || null,
+    limitReached: info.status === EgressStatus.EGRESS_LIMIT_REACHED,
   };
 }
 

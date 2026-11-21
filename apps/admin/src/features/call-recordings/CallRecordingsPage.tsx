@@ -129,6 +129,7 @@ function RecordingRow({ item, onPlay }: { item: CallRecordingDto; onPlay: () => 
         <p className="mt-1 text-sm text-neutral-600" title={formatDateTime(item.startedAt)}>
           {formatRelative(item.startedAt)} · {details.join(' · ')}
         </p>
+        {item.stopReason && <p className="mt-1 text-sm text-neutral-500">{item.stopReason}</p>}
         {item.error && <p className="mt-1 text-sm text-red-600">{item.error}</p>}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">

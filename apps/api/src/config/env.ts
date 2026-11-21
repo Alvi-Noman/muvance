@@ -75,6 +75,11 @@ const envSchema = z.object({
   CALL_RECORDINGS_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(180),
   /** Don't start a recording when the disk has less free space than this. */
   CALL_RECORDINGS_MIN_FREE_GB: z.coerce.number().min(0).default(5),
+  /**
+   * Stop recording after this many minutes in which the call is inactive: fewer than two people in
+   * it, or nobody's microphone on. (The recorder itself also stops at 3 hours; see deploy.sh.)
+   */
+  CALL_RECORDINGS_IDLE_MINUTES: z.coerce.number().int().min(1).max(600).default(10),
 
   TRUST_PROXY: z
     .string()

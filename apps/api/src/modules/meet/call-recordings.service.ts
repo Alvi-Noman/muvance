@@ -8,6 +8,7 @@ import type { CallRecordingDoc, UserDoc } from '@/db/types';
 import { logger } from '@/lib/logger';
 import { HttpError } from '@/utils/http-error';
 import { recorder } from './egress';
+import { livekit } from './livekit';
 
 const root = () => path.resolve(env.CALL_RECORDINGS_DIR);
 
@@ -30,6 +31,7 @@ export function toCallRecordingDto(doc: CallRecordingDoc): CallRecordingDto {
     durationSec: doc.durationSec,
     sizeBytes: doc.sizeBytes,
     error: doc.error,
+    stopReason: doc.stopReason ?? null,
   };
 }
 
@@ -53,8 +55,12 @@ async function sync(doc: CallRecordingDoc): Promise<CallRecordingDoc> {
       status: state.status,
       durationSec: state.durationSec ?? doc.durationSec,
       sizeBytes: state.sizeBytes ?? doc.sizeBytes,
-      error: state.error,
+      // Reaching the length limit isn't an error: the recording up to then is saved.
+      error: state.limitReached ? null : state.error,
       endedAt: state.status === 'recording' ? null : (doc.endedAt ?? new Date()),
+      ...(state.limitReached && {
+        stopReason: 'Stopped automatically at the 3-hour limit. Start a new recording to continue.',
+      }),
     };
   } else if (Date.now() - doc.startedAt.getTime() > 60 * 60_000 * 12) {
     // LiveKit forgets finished jobs after a while; by then the file either exists or never will.
@@ -163,6 +169,55 @@ export const callRecordingsService = {
       }
     }
     await collections.callRecordings().deleteOne({ _id: doc._id });
+  },
+
+  /**
+   * Stops recordings of calls that have gone quiet, so a forgotten call doesn't record for hours:
+   * fewer than two people in it, or nobody's microphone on, for CALL_RECORDINGS_IDLE_MINUTES in a
+   * row. Runs every minute.
+   */
+  async stopIdle(now = new Date()) {
+    const active = await collections.callRecordings().find({ status: 'recording' }).toArray();
+    for (const doc of active) {
+      const fresh = await sync(doc);
+      if (fresh.status !== 'recording') continue;
+
+      const people = await livekit.participants(doc.code);
+      const someoneTalking = people.some((p) =>
+        p.tracks.some((t) => t.source === 'microphone' && !t.muted),
+      );
+      const inactive = people.length < 2 || !someoneTalking;
+
+      if (!inactive) {
+        if (doc.idleSince) {
+          await collections
+            .callRecordings()
+            .updateOne({ _id: doc._id }, { $set: { idleSince: null } });
+        }
+        continue;
+      }
+      if (!doc.idleSince) {
+        await collections
+          .callRecordings()
+          .updateOne({ _id: doc._id }, { $set: { idleSince: now } });
+        continue;
+      }
+      const minutes = env.CALL_RECORDINGS_IDLE_MINUTES;
+      if (now.getTime() - doc.idleSince.getTime() < minutes * 60_000) continue;
+
+      await recorder.stop(doc.egressId);
+      const reason =
+        people.length < 2
+          ? `Stopped automatically: fewer than two people in the call for ${minutes} minutes.`
+          : `Stopped automatically: every microphone was off for ${minutes} minutes.`;
+      await collections
+        .callRecordings()
+        .updateOne(
+          { _id: doc._id, status: 'recording' },
+          { $set: { status: 'processing', endedAt: now, stopReason: reason, idleSince: null } },
+        );
+      logger.info({ code: doc.code, egressId: doc.egressId }, 'Stopped an inactive call recording');
+    }
   },
 
   /** Deletes recordings past the retention period. Runs daily. */

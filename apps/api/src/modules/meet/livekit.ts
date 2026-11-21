@@ -20,10 +20,17 @@ async function call<T>(what: string, run: () => Promise<T>): Promise<T> {
   }
 }
 
+/** ParticipantInfo.Kind.EGRESS (not exported by the SDK). */
+const EGRESS_KIND = 2;
+
 export interface LiveParticipant {
   identity: string;
   name: string;
-  tracks: { sid: string; source: 'microphone' | 'camera' | 'screen_share' | 'other' }[];
+  tracks: {
+    sid: string;
+    source: 'microphone' | 'camera' | 'screen_share' | 'other';
+    muted: boolean;
+  }[];
 }
 
 const sources: Record<number, LiveParticipant['tracks'][number]['source']> = {
@@ -38,7 +45,8 @@ export const livekit = {
     await call('createRoom', () =>
       rooms().createRoom({
         name: code,
-        maxParticipants: MEET_MAX_PARTICIPANTS,
+        // One seat more than people may take: the call recorder joins as a hidden participant.
+        maxParticipants: MEET_MAX_PARTICIPANTS + 1,
         // Close the call a few minutes after the last person leaves. There's no time limit.
         emptyTimeout: 5 * 60,
         departureTimeout: 60,
@@ -50,11 +58,18 @@ export const livekit = {
   async participants(code: string): Promise<LiveParticipant[]> {
     try {
       const list = await rooms().listParticipants(code);
-      return list.map((p) => ({
-        identity: p.identity,
-        name: p.name || 'Guest',
-        tracks: p.tracks.map((t) => ({ sid: t.sid, source: sources[t.source] ?? 'other' })),
-      }));
+      // People only: not the call recorder (LiveKit Egress), which joins as a hidden participant.
+      return list
+        .filter((p) => p.kind !== EGRESS_KIND)
+        .map((p) => ({
+          identity: p.identity,
+          name: p.name || 'Guest',
+          tracks: p.tracks.map((t) => ({
+            sid: t.sid,
+            source: sources[t.source] ?? 'other',
+            muted: t.muted,
+          })),
+        }));
     } catch (error) {
       // A room that doesn't exist yet (nobody has joined) is reported as an error: it's empty.
       const status = (error as { status?: number }).status;

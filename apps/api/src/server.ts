@@ -29,6 +29,15 @@ async function main() {
   setTimeout(cleanUpCalls, 2 * 60_000).unref();
   setInterval(cleanUpCalls, 24 * 60 * 60_000).unref();
 
+  // Every minute: stop recordings of calls that have gone quiet.
+  setInterval(
+    () =>
+      void callRecordingsService
+        .stopIdle()
+        .catch((error: unknown) => logger.warn({ err: error }, 'Idle recording check failed')),
+    60_000,
+  ).unref();
+
   const shutdown = (signal: string) => {
     logger.info(`${signal} received, shutting down`);
     server.close(() => {

@@ -257,4 +257,8 @@ export interface CallRecordingDoc {
   durationSec: number | null;
   sizeBytes: number | null;
   error: string | null;
+  /** When the call became inactive (fewer than 2 people, or every mic off); null while active. */
+  idleSince?: Date | null;
+  /** Why it stopped on its own, e.g. inactivity or the length limit. */
+  stopReason?: string | null;
 }

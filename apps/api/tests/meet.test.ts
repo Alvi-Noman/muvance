@@ -7,6 +7,7 @@ import type {
   MeetRoomInfoDto,
 } from '@muvance/shared';
 import type { LiveParticipant } from '@/modules/meet/livekit';
+import { callRecordingsService } from '@/modules/meet/call-recordings.service';
 import { app, signedIn } from './helpers';
 
 // LiveKit (the media server) is faked: these tests cover who may join, not audio and video.
@@ -47,7 +48,14 @@ vi.mock('@/modules/meet/egress', () => ({
     start: vi.fn(async () => {
       const egressId = `EG_${rec.next++}`;
       rec.jobs.set(egressId, { status: 'recording' });
-      return { egressId, status: 'recording', durationSec: null, sizeBytes: null, error: null };
+      return {
+        egressId,
+        status: 'recording',
+        durationSec: null,
+        sizeBytes: null,
+        error: null,
+        limitReached: false,
+      };
     }),
     stop: vi.fn(async (egressId: string) => {
       rec.jobs.set(egressId, { status: 'ready' });
@@ -62,13 +70,18 @@ vi.mock('@/modules/meet/egress', () => ({
         durationSec: done ? 95 : null,
         sizeBytes: done ? 12_000_000 : null,
         error: null,
+        limitReached: false,
       };
     }),
   },
 }));
 
 function person(identity: string, name = 'Someone'): LiveParticipant {
-  return { identity, name, tracks: [{ sid: `TR_${identity}`, source: 'microphone' }] };
+  return {
+    identity,
+    name,
+    tracks: [{ sid: `TR_${identity}`, source: 'microphone', muted: false }],
+  };
 }
 
 async function newRoom() {
@@ -287,6 +300,55 @@ describe('call recordings', () => {
     const { agent, room } = await newRoom();
     await agent.post(`/api/meet/rooms/${room.code}/recording`);
     await agent.post(`/api/meet/rooms/${room.code}/end`);
+    const state = await request(app).get(`/api/meet/rooms/${room.code}/recording`);
+    expect(state.body.active).toBe(false);
+  });
+
+  it('stops recording a call that has gone quiet for 10 minutes', async () => {
+    const { agent, room } = await newRoom();
+    const state = () => request(app).get(`/api/meet/rooms/${room.code}/recording`);
+    live.people = [person('u_host', 'Host'), person('g_client', 'Client')];
+    await agent.post(`/api/meet/rooms/${room.code}/recording`);
+    const t0 = Date.now();
+    const at = (min: number) => new Date(t0 + min * 60_000);
+
+    // Two people talking: keeps recording.
+    await callRecordingsService.stopIdle(at(1));
+    expect((await state()).body.active).toBe(true);
+
+    // The client leaves; the host stays (forgot the laptop open).
+    live.people = [person('u_host', 'Host')];
+    await callRecordingsService.stopIdle(at(2)); // quiet from here
+    await callRecordingsService.stopIdle(at(11)); // 9 minutes: not yet
+    expect((await state()).body.active).toBe(true);
+
+    // Someone comes back for a moment: the clock starts again.
+    live.people = [person('u_host', 'Host'), person('g_client', 'Client')];
+    await callRecordingsService.stopIdle(at(11.5));
+    live.people = [person('u_host', 'Host')];
+    await callRecordingsService.stopIdle(at(12));
+    await callRecordingsService.stopIdle(at(21));
+    expect((await state()).body.active).toBe(true);
+
+    await callRecordingsService.stopIdle(at(22.5)); // 10.5 quiet minutes
+    expect((await state()).body.active).toBe(false);
+
+    const viewer = await signedIn('viewer');
+    const list = (await viewer.agent.get('/api/call-recordings')).body as CallRecordingDto[];
+    expect(list.find((r) => r.code === room.code)?.stopReason).toMatch(/fewer than two people/);
+  });
+
+  it('treats a call where every microphone is off as quiet', async () => {
+    const { agent, room } = await newRoom();
+    const muted = (id: string) => ({
+      ...person(id),
+      tracks: [{ sid: `TR_${id}`, source: 'microphone' as const, muted: true }],
+    });
+    live.people = [muted('a'), muted('b')];
+    await agent.post(`/api/meet/rooms/${room.code}/recording`);
+    const t0 = Date.now();
+    await callRecordingsService.stopIdle(new Date(t0));
+    await callRecordingsService.stopIdle(new Date(t0 + 10 * 60_000 + 1000));
     const state = await request(app).get(`/api/meet/rooms/${room.code}/recording`);
     expect(state.body.active).toBe(false);
   });

@@ -85,6 +85,8 @@ export interface CallRecordingDto {
   sizeBytes: number | null;
   /** Why it failed, when it did. */
   error: string | null;
+  /** Why it stopped on its own (inactivity, length limit), if it did. */
+  stopReason: string | null;
 }
 
 /** Whether the call is being recorded right now (everyone in the call can ask). */

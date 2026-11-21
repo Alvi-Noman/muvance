@@ -42,6 +42,10 @@ redis:
 health_port: 9090
 cpu_cost:
   room_composite_cpu_cost: 2
+# A recording stops (and is saved) after 3 hours or 3 GB, whichever comes first.
+session_limits:
+  file_output_max_duration: 3h
+  file_output_max_size: 3221225472
 EGRESS
 )
 chmod 644 runtime/egress.yaml

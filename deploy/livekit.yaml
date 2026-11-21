@@ -14,8 +14,8 @@ rtc:
   # Find the server's public IP and give that to browsers (it's behind Docker's network).
   use_external_ip: true
 room:
-  # The same cap the API checks before letting anyone in.
-  max_participants: 5
+  # 5 people (the API checks that before letting anyone in) + the hidden call recorder.
+  max_participants: 6
   # Close a call 5 minutes after the last person leaves. There is no time limit while people are in it.
   empty_timeout: 300
   departure_timeout: 60
