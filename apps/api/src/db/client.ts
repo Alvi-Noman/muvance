@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import type {
   ActivityDoc,
   ApplicationDoc,
+  CallRecordingDoc,
   BlockedTimeDoc,
   DeviceDoc,
   InviteDoc,
@@ -79,6 +80,7 @@ export const collections = {
   applications: () => getDb().collection<ApplicationDoc>('applications'),
   meetRooms: () => getDb().collection<MeetRoomDoc>('meetRooms'),
   meetJoinRequests: () => getDb().collection<MeetJoinRequestDoc>('meetJoinRequests'),
+  callRecordings: () => getDb().collection<CallRecordingDoc>('callRecordings'),
 };
 
 /** Brings data from earlier versions up to date. Safe to run on every start. */
@@ -197,6 +199,9 @@ async function ensureIndexes(database: Db) {
     database.collection('meetRooms').createIndex({ code: 1 }, { unique: true }),
     database.collection('meetRooms').createIndex({ createdBy: 1, createdAt: -1 }),
     database.collection('meetJoinRequests').createIndex({ code: 1, status: 1 }),
+    database.collection('callRecordings').createIndex({ startedAt: -1 }),
+    database.collection('callRecordings').createIndex({ egressId: 1 }, { unique: true }),
+    database.collection('callRecordings').createIndex({ code: 1, status: 1 }),
     database
       .collection('meetJoinRequests')
       .createIndex({ createdAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 }),

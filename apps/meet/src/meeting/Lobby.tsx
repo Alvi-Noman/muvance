@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { useTrackVolume } from '@livekit/components-react';
+import { useQuery } from '@tanstack/react-query';
 import { Mic, MicOff, Sparkles, Video, VideoOff } from 'lucide-react';
-import type { MeDto, MeetRoomInfoDto } from '@muvance/shared';
+import type { MeDto, MeetRecordingStateDto, MeetRoomInfoDto } from '@muvance/shared';
 import { Header } from '@/components/Header';
 import { Avatar, Button, Spinner } from '@/components/ui';
+import { api } from '@/lib/api';
 import { applyBlur, blurSupported } from '@/lib/blur';
 import { cn } from '@/lib/cn';
 import { isMissingDevice, mediaErrorMessage } from '@/lib/media-errors';
@@ -46,6 +48,13 @@ export function Lobby({
 
   const camera = usePreviewTrack('videoinput', prefs.videoEnabled, prefs.videoDeviceId);
   const mic = usePreviewTrack('audioinput', prefs.audioEnabled, prefs.audioDeviceId);
+  // Tell people before they join if the call is being recorded.
+  const recording = useQuery({
+    queryKey: ['recording', info?.code],
+    queryFn: () => api.get<MeetRecordingStateDto>(`/meet/rooms/${info?.code}/recording`),
+    enabled: !!info && info.participants.length > 0,
+    refetchInterval: 5000,
+  });
   const volume = useTrackVolume(mic.track ?? undefined);
 
   useEffect(() => {
@@ -210,6 +219,11 @@ export function Lobby({
             )}
             <p className="text-neutral-600">{presenceText(others, full, info?.maxParticipants)}</p>
           </div>
+          {recording.data?.active && (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700">
+              <span className="size-2 rounded-full bg-red-600" /> This call is being recorded
+            </p>
+          )}
 
           {asking ? (
             <div className="mt-8">

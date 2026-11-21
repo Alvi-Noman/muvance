@@ -1,7 +1,7 @@
 # Production-like stack on your machine, built from source (with a local MongoDB):
 #   docker compose up --build
 # Website: http://localhost:8180   Admin: http://localhost:8181   Meetings: http://localhost:8183
-# For `npm run dev` instead, start just the media server for meetings: docker compose up -d livekit
+# For `npm run dev` instead, start just the media server for meetings: docker compose up -d livekit redis
 # Create the first owner:
 #   docker compose exec api node dist/create-owner.js --email you@example.com
 
@@ -80,6 +80,15 @@ services:
       - '127.0.0.1:7880:7880'
       - '127.0.0.1:7881:7881/tcp'
       - '127.0.0.1:7882:7882/udp'
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # LiveKit needs it (it's how it would talk to a recorder). Call recording itself only runs in
+  # production: the recorder needs Linux host networking.
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --save "" --appendonly no
     restart: unless-stopped
 
   caddy:

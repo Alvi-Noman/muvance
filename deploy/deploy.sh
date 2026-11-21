@@ -26,6 +26,27 @@ if [ ! -f runtime/livekit.env ]; then
   echo "Created runtime/livekit.env (LiveKit key and secret)"
 fi
 
+# Call recordings: the recorder's settings (with LiveKit's key), and the folder for the videos.
+# The recorder and the API run as different users, so both may write there.
+LK_KEY="$(sed -n 's/^LIVEKIT_API_KEY=//p' runtime/livekit.env)"
+LK_SECRET="$(sed -n 's/^LIVEKIT_API_SECRET=//p' runtime/livekit.env)"
+(
+  umask 077
+  cat > runtime/egress.yaml <<EGRESS
+log_level: info
+api_key: $LK_KEY
+api_secret: $LK_SECRET
+ws_url: ws://127.0.0.1:7880
+redis:
+  address: 127.0.0.1:6379
+health_port: 9090
+cpu_cost:
+  room_composite_cpu_cost: 2
+EGRESS
+)
+chmod 644 runtime/egress.yaml
+mkdir -p call-recordings && chmod 777 call-recordings
+
 IMAGE_TAG="$TAG" $COMPOSE pull
 
 if IMAGE_TAG="$TAG" $COMPOSE up -d --remove-orphans --wait --wait-timeout 180; then

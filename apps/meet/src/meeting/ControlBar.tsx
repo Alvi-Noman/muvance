@@ -6,6 +6,7 @@ import {
 } from '@livekit/components-react';
 import {
   ChevronUp,
+  CircleDot,
   EyeOff,
   Hand,
   Info,
@@ -343,6 +344,23 @@ export function ControlBar() {
                 icon={<EyeOff />}
                 label={prefs.hideSelf ? 'Show my video' : 'Hide my video from me'}
               />
+              {isHost && (
+                <MenuButton
+                  onClick={() => {
+                    setMoreOpen(false);
+                    if (call.recording.active) call.recording.stop();
+                    else call.setConfirmRecordingOpen(true);
+                  }}
+                  icon={<CircleDot className={call.recording.active ? 'text-red-600' : ''} />}
+                  label={
+                    call.recording.stopping
+                      ? 'Stopping recording…'
+                      : call.recording.active
+                        ? 'Stop recording'
+                        : 'Record this call'
+                  }
+                />
+              )}
               <MenuButton
                 onClick={() => {
                   setMoreOpen(false);

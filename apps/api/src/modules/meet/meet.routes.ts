@@ -22,6 +22,7 @@ import { currentUser, requireAuth } from '@/middlewares/auth';
 import { validateBody } from '@/middlewares/validate';
 import { SESSION_COOKIE, sessionsService } from '@/modules/auth/sessions.service';
 import { HttpError } from '@/utils/http-error';
+import { callRecordingsService } from './call-recordings.service';
 import { livekit } from './livekit';
 
 export const meetRouter = Router();
@@ -329,9 +330,29 @@ meetRouter.delete('/rooms/:code/participants/:identity', requireAuth, async (req
 
 meetRouter.post('/rooms/:code/end', requireAuth, async (req, res) => {
   const code = codeParam(req);
+  await callRecordingsService.stop(code);
   await livekit.end(code);
   await collections
     .meetJoinRequests()
     .updateMany({ code }, { $set: { status: 'denied', decidedAt: new Date() } });
   res.status(204).end();
+});
+
+// --- Recording -----------------------------------------------------------------------------
+
+/** Everyone in the call checks this, so they know when they're being recorded. */
+meetRouter.get('/rooms/:code/recording', async (req, res) => {
+  res.json(await callRecordingsService.stateFor(codeParam(req)));
+});
+
+meetRouter.post('/rooms/:code/recording', requireAuth, async (req, res) => {
+  const room = await findRoom(req);
+  await callRecordingsService.start(room.code, room.title, currentUser(req));
+  res.status(201).json(await callRecordingsService.stateFor(room.code));
+});
+
+meetRouter.delete('/rooms/:code/recording', requireAuth, async (req, res) => {
+  const code = codeParam(req);
+  await callRecordingsService.stop(code);
+  res.json(await callRecordingsService.stateFor(code));
 });

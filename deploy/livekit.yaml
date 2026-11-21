@@ -19,5 +19,8 @@ room:
   # Close a call 5 minutes after the last person leaves. There is no time limit while people are in it.
   empty_timeout: 300
   departure_timeout: 60
+# Redis connects LiveKit to the recorder (Egress) for call recordings.
+redis:
+  address: redis:6379
 logging:
   level: info

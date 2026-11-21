@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { MeetParticipantRole } from '@muvance/shared';
 import type { MeetPrefs } from '@/lib/prefs';
+import type { useRecording } from './use-recording';
 
 export type Panel = 'info' | 'people' | 'chat' | null;
 
@@ -39,6 +40,10 @@ export interface CallState {
   signal: (message: Signal) => void;
   reactions: Reaction[];
   showReaction: (emoji: string, name: string) => void;
+  recording: ReturnType<typeof useRecording>;
+  /** Hosts confirm before recording starts. */
+  confirmRecordingOpen: boolean;
+  setConfirmRecordingOpen: (open: boolean) => void;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
   /** Called when this person mutes themselves, to tell a host's mute apart from their own. */

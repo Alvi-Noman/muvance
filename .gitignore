@@ -33,3 +33,4 @@ runtime/
 apps/mobile/android/app/google-services.json
 *.keystore
 *.jks
+/call-recordings/

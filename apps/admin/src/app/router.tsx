@@ -77,6 +77,13 @@ export const router = createBrowserRouter([
           })),
       },
       {
+        path: 'call-recordings',
+        lazy: () =>
+          import('@/features/call-recordings/CallRecordingsPage').then((m) => ({
+            Component: m.CallRecordingsPage,
+          })),
+      },
+      {
         path: 'invoice',
         lazy: () =>
           import('@/features/documents/InvoicePage').then((m) => ({

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   CalendarDays,
+  Clapperboard,
   Columns3,
   FilePen,
   Hourglass,
@@ -42,6 +43,7 @@ const nav: NavItem[] = [
   { to: '/applications', label: 'Applications', icon: Inbox },
   { to: '/meetings', label: 'Meetings', icon: CalendarDays },
   { to: '/recordings', label: 'Recordings', icon: Video },
+  { to: '/call-recordings', label: 'Call recordings', icon: Clapperboard },
   { to: '/invoice', label: 'Invoice', icon: ReceiptText, permission: 'settings:manage' },
   { to: '/offer-letter', label: 'Offer letter', icon: FilePen, permission: 'settings:manage' },
   { to: '/team', label: 'Team', icon: UserCog, permission: 'team:manage' },

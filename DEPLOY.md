@@ -131,6 +131,19 @@ through Caddy, and audio and video directly on ports 7881/tcp and 7882/udp. If c
 sees or hears each other, those ports are blocked. Very strict networks that allow only web traffic
 (port 443) can't join; that would need a separate TURN server.
 
+### Call recordings
+
+A host starts recording from ⋮ → **Record this call**. LiveKit's recorder (the `egress` container) opens
+the call in a hidden Chrome and saves it as an MP4 in `/opt/muvance/call-recordings`; the admin's
+**Call recordings** page plays and downloads them. `redis` connects LiveKit and the recorder.
+
+- Disk: about 200 MB per 30-minute call. Recording refuses to start below 5 GB free
+  (`CALL_RECORDINGS_MIN_FREE_GB`), and recordings older than 180 days are deleted
+  (`CALL_RECORDINGS_RETENTION_DAYS`; both can go in `runtime/api.env`).
+- CPU: a recording uses about 2 cores, so this server records one or two calls at a time.
+- `deploy.sh` writes the recorder's settings (`runtime/egress.yaml`) from `runtime/livekit.env`.
+- Back up `/opt/muvance/call-recordings` if the recordings matter; they're only on this server.
+
 ## Moving from the shared Qravy server
 
 Muvance used to run on Qravy's VPS behind Qravy's Caddy. To move it without downtime:

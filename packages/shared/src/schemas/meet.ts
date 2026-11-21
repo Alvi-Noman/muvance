@@ -61,3 +61,35 @@ export interface MeetJoinRequestDto {
   name: string;
   createdAt: string;
 }
+
+/* Call recordings ----------------------------------------------------------------------- */
+
+export type CallRecordingStatus = 'recording' | 'processing' | 'ready' | 'failed';
+
+export const callRecordingStatusLabels: Record<CallRecordingStatus, string> = {
+  recording: 'Recording',
+  processing: 'Saving',
+  ready: 'Ready',
+  failed: 'Failed',
+};
+
+export interface CallRecordingDto {
+  id: string;
+  code: string;
+  title: string | null;
+  startedByName: string;
+  startedAt: string;
+  endedAt: string | null;
+  status: CallRecordingStatus;
+  durationSec: number | null;
+  sizeBytes: number | null;
+  /** Why it failed, when it did. */
+  error: string | null;
+}
+
+/** Whether the call is being recorded right now (everyone in the call can ask). */
+export interface MeetRecordingStateDto {
+  active: boolean;
+  startedByName: string | null;
+  startedAt: string | null;
+}

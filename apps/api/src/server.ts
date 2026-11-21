@@ -3,6 +3,7 @@ import { env } from './config/env';
 import { closeDb, connectDb } from './db/client';
 import { seedDevOwner } from './db/seed-dev';
 import { logger } from './lib/logger';
+import { callRecordingsService } from './modules/meet/call-recordings.service';
 import { recordingsService } from './modules/recordings/recordings.service';
 
 async function main() {
@@ -19,6 +20,14 @@ async function main() {
       .catch((error: unknown) => logger.warn({ err: error }, 'Recording clean-up failed'));
   setTimeout(cleanUp, 60_000).unref();
   setInterval(cleanUp, 60 * 60_000).unref();
+
+  // Daily: delete call recordings past their retention period.
+  const cleanUpCalls = () =>
+    void callRecordingsService
+      .cleanUp()
+      .catch((error: unknown) => logger.warn({ err: error }, 'Call recording clean-up failed'));
+  setTimeout(cleanUpCalls, 2 * 60_000).unref();
+  setInterval(cleanUpCalls, 24 * 60 * 60_000).unref();
 
   const shutdown = (signal: string) => {
     logger.info(`${signal} received, shutting down`);

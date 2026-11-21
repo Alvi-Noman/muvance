@@ -45,7 +45,9 @@ import { PeoplePanel } from './panels/PeoplePanel';
 import { Reactions } from './Reactions';
 import { SettingsDialog } from './SettingsDialog';
 import { Stage } from './Stage';
+import { RecordingBadge, RecordingConfirm } from './RecordingUi';
 import { Toasts } from './Toasts';
+import { useRecording } from './use-recording';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -347,6 +349,9 @@ function CallScreen({
     void room.disconnect();
   }, [room]);
 
+  const recording = useRecording(code, toast);
+  const [confirmRecordingOpen, setConfirmRecordingOpen] = useState(false);
+
   const endForAll = useCallback(async () => {
     try {
       await api.post(`/meet/rooms/${code}/end`);
@@ -376,6 +381,9 @@ function CallScreen({
       markSelfMuted,
       leave,
       endForAll,
+      recording,
+      confirmRecordingOpen,
+      setConfirmRecordingOpen,
     }),
     [
       code,
@@ -394,6 +402,8 @@ function CallScreen({
       markSelfMuted,
       leave,
       endForAll,
+      recording,
+      confirmRecordingOpen,
     ],
   );
 
@@ -415,6 +425,7 @@ function CallScreen({
           </button>
         )}
         <div className="relative flex min-h-0 flex-1 gap-3 p-2 sm:p-3">
+          <RecordingBadge />
           <Stage />
           {panel && (
             <aside className="animate-fade-up fixed inset-0 z-40 flex flex-col bg-white text-neutral-950 md:static md:inset-auto md:z-auto md:w-[360px] md:shrink-0 md:rounded-3xl">
@@ -429,6 +440,7 @@ function CallScreen({
         <Toasts toasts={toasts} dismiss={(id) => setToasts((l) => l.filter((t) => t.id !== id))} />
         {role === 'host' && <JoinRequests />}
         <SettingsDialog />
+        <RecordingConfirm />
       </div>
     </CallContext.Provider>
   );

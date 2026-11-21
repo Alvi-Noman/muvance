@@ -1,6 +1,11 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MeetJoinRequestDto, MeetRoomDto, MeetRoomInfoDto } from '@muvance/shared';
+import type {
+  CallRecordingDto,
+  MeetJoinRequestDto,
+  MeetRoomDto,
+  MeetRoomInfoDto,
+} from '@muvance/shared';
 import type { LiveParticipant } from '@/modules/meet/livekit';
 import { app, signedIn } from './helpers';
 
@@ -31,6 +36,37 @@ vi.mock('@/modules/meet/livekit', () => ({
   },
 }));
 
+// The recorder (LiveKit Egress) is faked too: jobs finish when told to.
+const rec = vi.hoisted(() => ({
+  jobs: new Map<string, { status: 'recording' | 'processing' | 'ready' | 'failed' }>(),
+  next: 1,
+}));
+
+vi.mock('@/modules/meet/egress', () => ({
+  recorder: {
+    start: vi.fn(async () => {
+      const egressId = `EG_${rec.next++}`;
+      rec.jobs.set(egressId, { status: 'recording' });
+      return { egressId, status: 'recording', durationSec: null, sizeBytes: null, error: null };
+    }),
+    stop: vi.fn(async (egressId: string) => {
+      rec.jobs.set(egressId, { status: 'ready' });
+    }),
+    state: vi.fn(async (egressId: string) => {
+      const job = rec.jobs.get(egressId);
+      if (!job) return null;
+      const done = job.status === 'ready';
+      return {
+        egressId,
+        status: job.status,
+        durationSec: done ? 95 : null,
+        sizeBytes: done ? 12_000_000 : null,
+        error: null,
+      };
+    }),
+  },
+}));
+
 function person(identity: string, name = 'Someone'): LiveParticipant {
   return { identity, name, tracks: [{ sid: `TR_${identity}`, source: 'microphone' }] };
 }
@@ -47,6 +83,7 @@ beforeEach(() => {
   live.removed = [];
   live.muted = [];
   live.ended = [];
+  rec.jobs.clear();
 });
 
 describe('meet', () => {
@@ -201,5 +238,56 @@ describe('meet', () => {
 
     await agent.post(`/api/meet/rooms/${room.code}/end`);
     expect(live.ended).toEqual([room.code]);
+  });
+});
+
+describe('call recordings', () => {
+  it('lets hosts record, and tells everyone in the call', async () => {
+    const { agent, room } = await newRoom();
+    const state = () => request(app).get(`/api/meet/rooms/${room.code}/recording`);
+    expect((await state()).body.active).toBe(false);
+
+    // Guests can't start or stop recordings.
+    expect((await request(app).post(`/api/meet/rooms/${room.code}/recording`)).status).toBe(401);
+
+    const started = await agent.post(`/api/meet/rooms/${room.code}/recording`);
+    expect(started.status).toBe(201);
+    expect((await state()).body).toMatchObject({ active: true, startedByName: 'member user' });
+
+    // One recording at a time.
+    expect((await agent.post(`/api/meet/rooms/${room.code}/recording`)).status).toBe(409);
+
+    const stopped = await agent.delete(`/api/meet/rooms/${room.code}/recording`);
+    expect(stopped.body.active).toBe(false);
+  });
+
+  it('lists recordings in the admin, and only admins can delete them', async () => {
+    const { agent, room } = await newRoom();
+    await agent.post(`/api/meet/rooms/${room.code}/recording`);
+    await agent.delete(`/api/meet/rooms/${room.code}/recording`);
+
+    const viewer = await signedIn('viewer');
+    const list = await viewer.agent.get('/api/call-recordings');
+    expect(list.status).toBe(200);
+    const mine = (list.body as CallRecordingDto[]).find((r) => r.code === room.code)!;
+    expect(mine).toMatchObject({ status: 'ready', title: 'Strategy call', durationSec: 95 });
+
+    // The test has no real video file on disk.
+    expect((await viewer.agent.get(`/api/call-recordings/${mine.id}/file`)).status).toBe(404);
+
+    expect((await request(app).get('/api/call-recordings')).status).toBe(401);
+    expect((await agent.delete(`/api/call-recordings/${mine.id}`)).status).toBe(403);
+    const admin = await signedIn('admin');
+    expect((await admin.agent.delete(`/api/call-recordings/${mine.id}`)).status).toBe(204);
+    const after = await viewer.agent.get('/api/call-recordings');
+    expect((after.body as CallRecordingDto[]).some((r) => r.id === mine.id)).toBe(false);
+  });
+
+  it('stops the recording when a host ends the call for everyone', async () => {
+    const { agent, room } = await newRoom();
+    await agent.post(`/api/meet/rooms/${room.code}/recording`);
+    await agent.post(`/api/meet/rooms/${room.code}/end`);
+    const state = await request(app).get(`/api/meet/rooms/${room.code}/recording`);
+    expect(state.body.active).toBe(false);
   });
 });

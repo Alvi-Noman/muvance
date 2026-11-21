@@ -57,7 +57,12 @@ services:
       SITE_URL: https://${SITE_DOMAIN}
       MEET_URL: https://meet.${SITE_DOMAIN}
       LIVEKIT_URL: http://livekit:7880
+      # Call recordings: the recorder writes to /out, the API reads the same folder here.
+      CALL_RECORDINGS_DIR: /recordings
+      EGRESS_OUTPUT_DIR: /out
       CORS_ORIGIN: https://${SITE_DOMAIN},https://${ADMIN_DOMAIN},https://meet.${SITE_DOMAIN}
+    volumes:
+      - ./call-recordings:/recordings
     restart: unless-stopped
     logging: *logging
 
@@ -89,11 +94,49 @@ services:
     ports:
       - '7881:7881/tcp'
       - '7882:7882/udp'
+      # Only for the recorder on this machine; not reachable from the internet.
+      - '127.0.0.1:7880:7880'
+    depends_on:
+      - redis
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:7880']
       interval: 10s
       timeout: 5s
       retries: 6
+    restart: unless-stopped
+    logging: *logging
+
+  # Connects LiveKit and the recorder. Holds nothing that needs keeping.
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --save "" --appendonly no
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    logging: *logging
+
+  # Records calls (LiveKit Egress): a hidden Chrome joins the call and saves it as an MP4 in
+  # ./call-recordings. Uses the host's network so it reaches LiveKit's media ports directly.
+  egress:
+    image: livekit/egress:v1.15.0
+    network_mode: host
+    cap_add:
+      - SYS_ADMIN
+    shm_size: '1gb'
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    volumes:
+      # Made by deploy.sh from runtime/livekit.env (it holds LiveKit's key).
+      - ./runtime/egress.yaml:/etc/egress.yaml:ro
+      - ./call-recordings:/out
+    depends_on:
+      - livekit
+      - redis
     restart: unless-stopped
     logging: *logging
 

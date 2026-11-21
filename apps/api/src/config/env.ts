@@ -65,6 +65,17 @@ const envSchema = z.object({
   LIVEKIT_API_KEY: z.string().min(1).default('devkey'),
   LIVEKIT_API_SECRET: z.string().min(32).default('muvance-local-livekit-secret-0123456789'),
 
+  /**
+   * Call recordings. LiveKit Egress writes MP4s to EGRESS_OUTPUT_DIR inside its container; the
+   * same folder is mounted into the API at CALL_RECORDINGS_DIR, so it can play and delete them.
+   */
+  CALL_RECORDINGS_DIR: z.string().min(1).default('./call-recordings'),
+  EGRESS_OUTPUT_DIR: z.string().min(1).default('/out'),
+  /** Recordings older than this are deleted automatically. */
+  CALL_RECORDINGS_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(180),
+  /** Don't start a recording when the disk has less free space than this. */
+  CALL_RECORDINGS_MIN_FREE_GB: z.coerce.number().min(0).default(5),
+
   TRUST_PROXY: z
     .string()
     .default('false')

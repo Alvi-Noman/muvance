@@ -239,3 +239,22 @@ export interface MeetJoinRequestDoc {
   lastSeenAt: Date;
   decidedAt: Date | null;
 }
+
+/** A recorded meeting. The video file lives on the server's disk (CALL_RECORDINGS_DIR). */
+export interface CallRecordingDoc {
+  _id: ObjectId;
+  /** LiveKit Egress job that records it. */
+  egressId: string;
+  code: string;
+  title: string | null;
+  startedBy: ObjectId;
+  startedByName: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  status: 'recording' | 'processing' | 'ready' | 'failed';
+  /** Path relative to CALL_RECORDINGS_DIR, e.g. "abc-defg-hij/2026-11-21T15-04-05.mp4". */
+  file: string;
+  durationSec: number | null;
+  sizeBytes: number | null;
+  error: string | null;
+}

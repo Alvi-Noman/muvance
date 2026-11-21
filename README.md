@@ -50,7 +50,7 @@ Stop with `npm run docker:down`.
 ### Meetings (meet.muvance.com)
 
 Video calls run on [LiveKit](https://livekit.io), an open-source media server we host ourselves.
-For `npm run dev`, start it once with `docker compose up -d livekit` (the API's defaults match its
+For `npm run dev`, start it once with `docker compose up -d livekit redis` (the API's defaults match its
 keys), then open http://localhost:5175. Team members sign in with their admin account to start
 meetings and let guests in; guests just open the link.
 
@@ -64,7 +64,9 @@ meetings and let guests in; guests just open the link.
 | Hosts (team)  | Mute someone or everyone, remove a guest, lower hands, end the call for everyone                 |
 | Shortcuts     | Ctrl+D mic, Ctrl+E camera, Ctrl+Alt+H hand, Ctrl+Alt+C chat, Ctrl+Alt+P people (⌘ on a Mac)      |
 
-Not included: recording and live captions (they need extra services).
+| Recording | Hosts: ⋮ → Record this call. Everyone sees "Recording"; MP4s play in the admin (Call recordings) |
+
+Recording runs only in production (the recorder needs Linux). Not included: live captions.
 
 ## Scripts (run from the root)
 
