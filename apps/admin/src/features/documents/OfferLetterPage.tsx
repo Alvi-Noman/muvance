@@ -121,7 +121,11 @@ export function OfferLetterPage() {
     </Field>
   );
 
-  const date = (field: keyof OfferData, label: string, onChange = (v: string) => update(field, v)) => (
+  const date = (
+    field: keyof OfferData,
+    label: string,
+    onChange = (v: string) => update(field, v),
+  ) => (
     <Field label={label}>
       {(p) => (
         <Input {...p} type="date" value={offer[field]} onChange={(e) => onChange(e.target.value)} />

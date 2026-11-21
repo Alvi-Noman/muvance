@@ -114,7 +114,10 @@ export const toNumber = (s: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-const money2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money2 = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 const money0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
 /** "10,000.00" */

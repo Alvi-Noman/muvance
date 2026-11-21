@@ -35,7 +35,12 @@ type SavedClient = Pick<
 const nextInvoiceNo = () => `MVNC-${readStored(NEXT_NO_KEY, FIRST_NO)}`;
 
 function newItem(invoiceDate: string): InvoiceItem {
-  return { name: 'Monthly media buying', note: billingPeriod(invoiceDate), qty: '1', unitPrice: '' };
+  return {
+    name: 'Monthly media buying',
+    note: billingPeriod(invoiceDate),
+    qty: '1',
+    unitPrice: '',
+  };
 }
 
 function newInvoice(): InvoiceData {
@@ -282,7 +287,11 @@ export function InvoicePage() {
                       />
                     )}
                   </Field>
-                  <Field label="Note" hint="Optional, e.g. billing period" className="sm:col-span-3">
+                  <Field
+                    label="Note"
+                    hint="Optional, e.g. billing period"
+                    className="sm:col-span-3"
+                  >
                     {(p) => (
                       <Input
                         {...p}
