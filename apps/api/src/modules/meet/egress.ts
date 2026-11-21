@@ -59,6 +59,8 @@ export const recorder = {
         new EncodedFileOutput({
           fileType: EncodedFileType.MP4,
           filepath: `${env.EGRESS_OUTPUT_DIR}/${relativeFile}`,
+          // No summary .json next to each video; the database keeps those details.
+          disableManifest: true,
         }),
         { layout: 'speaker', encodingOptions: EncodingOptionsPreset.H264_720P_30 },
       );
