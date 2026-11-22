@@ -30,10 +30,10 @@ export function toMailAccountDto(doc: MailAccountDoc): MailAccountDto {
   };
 }
 
-async function writeAtomically(file: string, content: string) {
+async function writeAtomically(file: string, content: string, mode = 0o600) {
   const full = path.join(env.MAIL_CONFIG_DIR, file);
   const temp = `${full}.${process.pid}.tmp`;
-  await writeFile(temp, content, { mode: 0o600 });
+  await writeFile(temp, content, { mode });
   await rename(temp, full);
 }
 
@@ -83,6 +83,8 @@ export const mailService = {
     await writeAtomically('postfix-accounts.cf', accountLines.join('\n') + '\n');
     await writeAtomically('postfix-virtual.cf', aliasLines.join('\n') + '\n');
     await writeAtomically('dovecot-quotas.cf', quotaLines.join('\n') + '\n');
+    // Readable by deploy.sh (the files above are private): it starts email once there's a mailbox.
+    await writeAtomically('mailbox-count', `${accounts.length}\n`, 0o644);
     logger.info({ accounts: accounts.length }, 'Mail server accounts updated');
   },
 

@@ -72,7 +72,7 @@ if [ ! -f runtime/mail.env ]; then
   echo "Email: not started (runtime/mail.env with RELAY_USER and RELAY_PASSWORD is missing)"
 elif ! $COMPOSE exec -T caddy test -f "$MAIL_CERT" 2> /dev/null; then
   echo "Email: not started (no certificate for mail.$SITE_DOMAIN yet; check its DNS record)"
-elif [ ! -s mail/config/postfix-accounts.cf ]; then
+elif [ "$(cat mail/config/mailbox-count 2> /dev/null || echo 0)" -lt 1 ]; then
   echo "Email: not started (create a mailbox in the admin first)"
 else
   COMPOSE="$COMPOSE --profile mail"

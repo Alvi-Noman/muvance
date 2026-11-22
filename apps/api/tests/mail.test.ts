@@ -45,6 +45,7 @@ describe('team email accounts', () => {
     // Role addresses go to the first mailbox.
     expect(aliases).toContain('postmaster@muvance.com nadia.k@muvance.com');
     expect(await file('dovecot-quotas.cf')).toContain('nadia.k@muvance.com:5G');
+    expect(Number(await file('mailbox-count'))).toBeGreaterThan(0);
 
     const list = (await agent.get('/api/mail-accounts')).body as MailAccountsDto;
     expect(list.webmailUrl).toBe('https://mail.muvance.com');
