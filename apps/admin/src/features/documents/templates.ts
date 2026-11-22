@@ -268,6 +268,7 @@ export function renderInvoice(d: InvoiceData) {
     </div>
     <div class="grid2 body">
       <div class="kv" style="row-gap:1.2mm">
+        <span>Bank</span><span>Islami Bank PLC</span>
         <span>Account name</span><span>STAMPKIT</span>
         <span>Account no.</span><span>20501310100646715</span>
         <span>Branch</span><span>Mirpur</span>
