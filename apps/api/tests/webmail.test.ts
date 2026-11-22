@@ -193,4 +193,56 @@ describe('Muvance Mail sign-in', () => {
     expect(Object.keys(team)).toContain('pia@muvance.com');
     expect((await request(app).get('/api/webmail/team-avatars')).status).toBe(401);
   });
+
+  it('lists the addresses you can send as, each with its own name, and only those', async () => {
+    const { admin, account } = await newMailbox('cara');
+    await admin.patch(`/api/mail-accounts/${account.id}`).send({ senderName: 'Cara from Muvance' });
+    await admin
+      .post('/api/mail-addresses')
+      .send({ localPart: 'accounts', displayName: 'Muvance Accounts', ownerIds: [account.id] });
+    const other = await newMailbox('dev');
+    await admin
+      .post('/api/mail-addresses')
+      .send({ localPart: 'careers', displayName: 'Muvance Careers', ownerIds: [other.account.id] });
+
+    const web = request.agent(app);
+    await web.post('/api/webmail/login').send({ email: 'cara', password: 'mailbox-password-1' });
+    const me = (await web.get('/api/webmail/me')).body as WebmailMeDto;
+    expect(me.identities.map((i) => [i.address, i.name, i.primary])).toEqual([
+      ['cara@muvance.com', 'Cara from Muvance', true],
+      ['accounts@muvance.com', 'Muvance Accounts', false],
+    ]);
+
+    // She can rename and sign each of her addresses, but not someone else's.
+    expect(
+      (
+        await web.put('/api/webmail/identities').send({
+          address: 'accounts@muvance.com',
+          name: 'Muvance Billing',
+          signature: 'Billing team',
+        })
+      ).status,
+    ).toBe(204);
+    expect(
+      (
+        await web
+          .put('/api/webmail/identities')
+          .send({ address: 'careers@muvance.com', name: 'X', signature: '' })
+      ).status,
+    ).toBe(403);
+    const after = (await web.get('/api/webmail/me')).body as WebmailMeDto;
+    expect(after.identities[1]).toMatchObject({
+      name: 'Muvance Billing',
+      signature: 'Billing team',
+    });
+
+    // Sending as an address that isn't hers is refused before anything is sent.
+    const send = await web.post('/api/webmail/send').send({
+      from: 'careers@muvance.com',
+      to: ['x@example.com'],
+      subject: 'Hi',
+      html: '<p>Hi</p>',
+    });
+    expect(send.status).toBe(403);
+  });
 });

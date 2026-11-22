@@ -54,6 +54,21 @@ export interface ComposeDraft {
   references?: string[];
   replyTo?: { folder: string; uid: number };
   draftUid?: number;
+  /** Which of your addresses it's sent from (defaults to your own). */
+  from?: string;
+}
+
+/** Your signature for an address, as HTML to put at the end of a message. */
+export function signatureHtml(me: WebmailMeDto, from?: string) {
+  const identity = me.identities.find((i) => i.address === from) ?? me.identities[0];
+  const text = identity?.signature ?? me.signature;
+  return text ? `<p>—<br>${escapeHtml(text).replace(/\n/g, '<br>')}</p>` : '';
+}
+
+/** The address a reply goes out from: the one of yours the message was sent to. */
+function replyIdentity(m: WebmailMessage, me: WebmailMeDto) {
+  const recipients = [...m.to, ...m.cc].map((r) => r.address.toLowerCase());
+  return (me.identities.find((i) => recipients.includes(i.address)) ?? me.identities[0])?.address;
 }
 
 const MAX_TOTAL = 25 * 1024 * 1024;
@@ -67,7 +82,8 @@ export async function replyDraft(
   const original = sanitizeEmail(m.html ?? (m.text ? textToHtml(m.text) : ''), {
     allowRemote: true,
   }).html;
-  const signature = me.signature ? `<p>—<br>${me.signature.replace(/\n/g, '<br>')}</p>` : '';
+  const from = replyIdentity(m, me);
+  const signature = signatureHtml(me, from);
   const header =
     mode === 'forward'
       ? `<p>---------- Forwarded message ----------<br>From: ${escapeHtml(displayName(m.from))} &lt;${escapeHtml(m.from?.address ?? '')}&gt;<br>Date: ${escapeHtml(longDate(m.date))}<br>Subject: ${escapeHtml(m.subject)}</p>`
@@ -91,15 +107,18 @@ export async function replyDraft(
         content: await fileToBase64(blob),
       });
     }
-    return { subject, html, attachments };
+    return { subject, html, attachments, from };
   }
 
+  const mine = new Set(me.identities.map((i) => i.address));
   const replyAddress = (m.replyTo[0] ?? m.from)?.address;
   const to =
-    replyAddress && replyAddress !== me.address ? [replyAddress] : m.to.map((t) => t.address);
+    replyAddress && !mine.has(replyAddress)
+      ? [replyAddress]
+      : m.to.map((t) => t.address).filter((a) => !mine.has(a));
   const cc =
     mode === 'replyAll'
-      ? [...m.to, ...m.cc].map((t) => t.address).filter((a) => a !== me.address && !to.includes(a))
+      ? [...m.to, ...m.cc].map((t) => t.address).filter((a) => !mine.has(a) && !to.includes(a))
       : [];
   return {
     to,
@@ -109,12 +128,14 @@ export async function replyDraft(
     inReplyTo: m.messageId ?? undefined,
     references: [...m.references, ...(m.messageId ? [m.messageId] : [])],
     replyTo: { folder: m.folder, uid: m.uid },
+    from,
   };
 }
 
 export function Composer({ initial, onClose }: { initial: ComposeDraft; onClose: () => void }) {
-  const { toast } = useMail();
+  const { toast, me } = useMail();
   const refresh = useRefresh();
+  const [from, setFrom] = useState(initial.from ?? me.address);
   const [to, setTo] = useState(initial.to);
   const [cc, setCc] = useState(initial.cc);
   const [bcc, setBcc] = useState(initial.bcc);
@@ -158,8 +179,9 @@ export function Composer({ initial, onClose }: { initial: ComposeDraft; onClose:
       references: initial.references,
       replyTo: initial.replyTo,
       draftUid,
+      from,
     }),
-    [to, cc, bcc, subject, editor, attachments, initial, draftUid],
+    [to, cc, bcc, subject, editor, attachments, initial, draftUid, from],
   );
 
   const saveDraft = useMutation({
@@ -307,6 +329,25 @@ export function Composer({ initial, onClose }: { initial: ComposeDraft; onClose:
       {!minimized && (
         <>
           <div className="border-b border-line">
+            {me.identities.length > 1 && (
+              <label className="flex min-h-11 items-center gap-1.5 border-b border-line px-4">
+                <span className="w-10 shrink-0 text-sm text-muted">From</span>
+                <select
+                  value={from}
+                  onChange={(e) => {
+                    setFrom(e.target.value);
+                    dirty.current = true;
+                  }}
+                  className="h-9 min-w-0 flex-1 cursor-pointer bg-transparent text-sm outline-none"
+                >
+                  {me.identities.map((i) => (
+                    <option key={i.address} value={i.address}>
+                      {i.name} &lt;{i.address}&gt;
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <RecipientField
               label="To"
               values={to}

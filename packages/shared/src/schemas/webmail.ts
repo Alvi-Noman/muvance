@@ -105,6 +105,8 @@ export const webmailComposeSchema = z.object({
     .default([]),
   /** The draft this replaces (deleted after saving or sending). */
   draftUid: z.number().int().positive().optional(),
+  /** Which of your addresses it's sent from (your own, or a shared one like hr@). */
+  from: z.string().trim().toLowerCase().email().optional(),
   /** The message being replied to, marked as answered after sending. */
   replyTo: z.object({ folder: z.string(), uid: z.number().int().positive() }).optional(),
 });
@@ -122,12 +124,29 @@ export const webmailPasswordSchema = z.object({
   next: z.string().min(10, 'At least 10 characters').max(128),
 });
 
+/** An address you can send from, with the name and signature used for it. */
+export interface WebmailIdentity {
+  address: string;
+  name: string;
+  signature: string;
+  /** Your own mailbox address (the others are shared addresses like hr@). */
+  primary: boolean;
+}
+
+export const webmailIdentitySchema = z.object({
+  address: z.string().trim().toLowerCase().email(),
+  name: z.string().trim().min(1, 'Enter a name').max(80),
+  signature: z.string().max(20_000),
+});
+
 export interface WebmailMeDto extends WebmailSettings {
   address: string;
   name: string;
   /** The password was set by an admin: they choose their own before seeing their inbox. */
   mustChangePassword: boolean;
   avatarUrl: string | null;
+  /** Your address first, then shared addresses you can send as. */
+  identities: WebmailIdentity[];
 }
 
 /** Teammates' profile pictures, by email address, for showing next to their mail. */

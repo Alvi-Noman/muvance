@@ -276,8 +276,10 @@ export interface MailAccountDoc {
   /** Profile picture, a small square image set by an admin or the person. */
   avatar?: { data: Binary; contentType: string; updatedAt: Date } | null;
   quotaGb: number;
-  /** Extra local parts that deliver here, e.g. "sales". */
-  aliases: string[];
+  /** The name recipients see on mail from their own address ("Alvi from Muvance"). */
+  senderName?: string;
+  /** @deprecated Moved to `mailAddresses` (migrated on start). */
+  aliases?: string[];
   createdBy: ObjectId;
   createdByName: string;
   createdAt: Date;
@@ -300,4 +302,18 @@ export interface WebmailProfileDoc {
   displayName: string;
   signature: string;
   contacts: { name: string; address: string; lastUsed: Date; count: number }[];
+  /** The person's own name and signature for shared addresses they send as. */
+  identities?: { address: string; name: string; signature: string }[];
+}
+
+/** A shared address (hr@, accounts@): delivered to its owners, who can send as it. */
+export interface MailAddressDoc {
+  _id: ObjectId;
+  localPart: string;
+  address: string;
+  displayName: string;
+  /** Mailboxes (MailAccountDoc ids) that receive it and may send as it. */
+  ownerIds: ObjectId[];
+  createdAt: Date;
+  updatedAt: Date;
 }

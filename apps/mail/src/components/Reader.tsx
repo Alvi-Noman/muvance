@@ -93,6 +93,7 @@ export function Reader() {
         subject: m.subject,
         html: m.html ?? (m.text ? textToHtml(m.text) : ''),
         draftUid: m.uid,
+        from: m.from?.address,
       });
       select(null);
     }

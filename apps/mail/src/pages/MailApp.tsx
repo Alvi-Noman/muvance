@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import type { WebmailMeDto, WebmailMessage } from '@muvance/shared';
-import { Composer, replyDraft, type ComposeDraft } from '@/components/Composer';
+import { Composer, replyDraft, signatureHtml, type ComposeDraft } from '@/components/Composer';
 import { MessageList } from '@/components/MessageList';
 import { Reader } from '@/components/Reader';
 import { SettingsDialog } from '@/components/SettingsDialog';
@@ -99,8 +99,8 @@ export function MailApp({ me }: { me: WebmailMeDto }) {
           cc: [],
           bcc: [],
           subject: '',
-          html: me.signature
-            ? `<p></p><p></p><p>—<br>${me.signature.replace(/\n/g, '<br>')}</p>`
+          html: signatureHtml(me, draft?.from)
+            ? `<p></p><p></p>${signatureHtml(me, draft?.from)}`
             : '',
           attachments: [],
           ...draft,
@@ -109,7 +109,7 @@ export function MailApp({ me }: { me: WebmailMeDto }) {
         return [...list.slice(-1), next];
       });
     },
-    [me.signature],
+    [me],
   );
 
   const reply = useCallback(

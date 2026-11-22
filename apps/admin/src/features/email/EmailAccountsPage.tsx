@@ -1,8 +1,24 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, Check, Copy, KeyRound, Mail, Pencil, Plus, Trash2, Wand2 } from 'lucide-react';
+import {
+  AtSign,
+  Camera,
+  Check,
+  Copy,
+  KeyRound,
+  Mail,
+  Pencil,
+  Plus,
+  Trash2,
+  Wand2,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import type { MailAccountDto, MailAccountsDto } from '@muvance/shared';
+import {
+  suggestAddressName,
+  type MailAccountDto,
+  type MailAccountsDto,
+  type MailAddressDto,
+} from '@muvance/shared';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Field, Input } from '@/components/ui/Field';
@@ -31,11 +47,10 @@ function suggestLocalPart(name: string) {
     .replace(/[^a-z0-9._-]/g, '');
 }
 
-function parseAliases(text: string) {
-  return text
-    .split(/[\s,]+/)
-    .map((a) => a.replace(/@.*$/, '').trim().toLowerCase())
-    .filter(Boolean);
+/** "Nadia Karim" -> "Nadia from Muvance", the usual name on a person's own mail. */
+function suggestSenderName(name: string) {
+  const first = name.trim().split(/\s+/)[0];
+  return first ? `${first} from Muvance` : '';
 }
 
 function useCopy() {
@@ -52,7 +67,8 @@ type Dialog =
   | { kind: 'create' }
   | { kind: 'edit'; account: MailAccountDto }
   | { kind: 'password'; account: MailAccountDto }
-  | { kind: 'created'; address: string; password: string };
+  | { kind: 'created'; address: string; password: string }
+  | { kind: 'address'; address: MailAddressDto | null };
 
 /** Team mailboxes at @muvance.com. People sign in at mail.muvance.com. */
 export function EmailAccountsPage() {
@@ -116,6 +132,48 @@ export function EmailAccountsPage() {
         )}
       </Card>
 
+      <section className="mt-8">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-medium text-neutral-900">Shared addresses</h2>
+            <p className="text-sm text-neutral-500">
+              Addresses like hr@ or accounts@. Their mail goes to the people you choose, who can
+              also send as them under the address's own name.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => setDialog({ kind: 'address', address: null })}
+            disabled={!accounts.length}
+          >
+            <Plus className="size-4" aria-hidden /> New address
+          </Button>
+        </div>
+        <Card>
+          {!data?.addresses.length ? (
+            <EmptyState
+              icon={<AtSign className="size-5" />}
+              title="No shared addresses yet"
+              description={
+                accounts.length
+                  ? 'Add hr@, accounts@, hello@ and so on, and choose who handles each.'
+                  : 'Create a mailbox first, then give people shared addresses.'
+              }
+            />
+          ) : (
+            <ul className="divide-y divide-black/[0.05]">
+              {data.addresses.map((address) => (
+                <AddressRow
+                  key={address.id}
+                  address={address}
+                  onEdit={() => setDialog({ kind: 'address', address })}
+                />
+              ))}
+            </ul>
+          )}
+        </Card>
+      </section>
+
       {data && <ClientSettings settings={data.clientSettings} />}
 
       <CreateDialog
@@ -138,6 +196,14 @@ export function EmailAccountsPage() {
           onDone={(password) =>
             setDialog({ kind: 'created', address: dialog.account.address, password })
           }
+        />
+      )}
+      {dialog?.kind === 'address' && data && (
+        <AddressDialog
+          address={dialog.address}
+          accounts={accounts}
+          domain={data.domain}
+          onClose={() => setDialog(null)}
         />
       )}
       {dialog?.kind === 'created' && data && (
@@ -177,11 +243,14 @@ function AccountRow({
         <AccountPicture account={account} className="size-10" />
         <div className="min-w-0">
           <p className="font-medium text-neutral-900">{account.name}</p>
-          <p className="truncate text-sm text-neutral-600">{account.address}</p>
+          <p className="truncate text-sm text-neutral-600">
+            {account.address}
+            <span className="text-neutral-400"> · sends as “{account.senderName}”</span>
+          </p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            {account.aliases.map((alias) => (
-              <Badge key={alias} className="bg-sky-50 text-sky-700">
-                {alias}
+            {account.addresses.map((address) => (
+              <Badge key={address} className="bg-sky-50 text-sky-700">
+                {address}
               </Badge>
             ))}
             <span className="text-xs text-neutral-500">
@@ -266,7 +335,8 @@ function CreateDialog({
   const [localPart, setLocalPart] = useState('');
   const [touchedLocal, setTouchedLocal] = useState(false);
   const [password, setPassword] = useState(generatePassword);
-  const [aliases, setAliases] = useState('');
+  const [senderName, setSenderName] = useState('');
+  const [touchedSender, setTouchedSender] = useState(false);
   const [quotaGb, setQuotaGb] = useState('10');
 
   const reset = () => {
@@ -274,7 +344,8 @@ function CreateDialog({
     setLocalPart('');
     setTouchedLocal(false);
     setPassword(generatePassword());
-    setAliases('');
+    setSenderName('');
+    setTouchedSender(false);
     setQuotaGb('10');
   };
 
@@ -284,8 +355,8 @@ function CreateDialog({
         name,
         localPart,
         password,
+        senderName: senderName.trim() || undefined,
         quotaGb: Number(quotaGb),
-        aliases: parseAliases(aliases),
       }),
     onSuccess: (account) => {
       void queryClient.invalidateQueries({ queryKey });
@@ -311,6 +382,7 @@ function CreateDialog({
               onChange={(e) => {
                 setName(e.target.value);
                 if (!touchedLocal) setLocalPart(suggestLocalPart(e.target.value));
+                if (!touchedSender) setSenderName(suggestSenderName(e.target.value));
               }}
               placeholder="Nadia Karim"
               required
@@ -341,15 +413,18 @@ function CreateDialog({
           {(p) => <PasswordInput value={password} onChange={setPassword} fieldProps={p} />}
         </Field>
         <Field
-          label="Other addresses (optional)"
-          hint={`Also deliver to this inbox, e.g. "sales, hello" for sales@ and hello@.`}
+          label="Name on their emails"
+          hint="What people see in their inbox. They can adjust it in Muvance Mail."
         >
           {(p) => (
             <Input
               {...p}
-              value={aliases}
-              onChange={(e) => setAliases(e.target.value)}
-              placeholder="sales, hello"
+              value={senderName}
+              onChange={(e) => {
+                setTouchedSender(true);
+                setSenderName(e.target.value);
+              }}
+              placeholder="Nadia from Muvance"
             />
           )}
         </Field>
@@ -382,15 +457,15 @@ function CreateDialog({
 function EditDialog({ account, onClose }: { account: MailAccountDto; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState(account.name);
-  const [aliases, setAliases] = useState(account.aliases.map((a) => a.split('@')[0]).join(', '));
+  const [senderName, setSenderName] = useState(account.senderName);
   const [quotaGb, setQuotaGb] = useState(String(account.quotaGb));
 
   const save = useMutation({
     mutationFn: () =>
       api.patch<MailAccountDto>(`/mail-accounts/${account.id}`, {
         name,
+        senderName: senderName.trim(),
         quotaGb: Number(quotaGb),
-        aliases: parseAliases(aliases),
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
@@ -422,9 +497,20 @@ function EditDialog({ account, onClose }: { account: MailAccountDto; onClose: ()
         <Field label="Their name">
           {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} required />}
         </Field>
-        <Field label="Other addresses" hint="Comma-separated, e.g. sales, hello">
-          {(p) => <Input {...p} value={aliases} onChange={(e) => setAliases(e.target.value)} />}
+        <Field
+          label="Name on their emails"
+          hint="Default for their own address. They can adjust it in Muvance Mail's settings."
+        >
+          {(p) => (
+            <Input {...p} value={senderName} onChange={(e) => setSenderName(e.target.value)} />
+          )}
         </Field>
+        {account.addresses.length > 0 && (
+          <p className="text-sm text-neutral-600">
+            Also receives and sends as: {account.addresses.join(', ')}. Change these under Shared
+            addresses.
+          </p>
+        )}
         <Field label="Storage (GB)">
           {(p) => (
             <Input
@@ -652,5 +738,170 @@ function PictureButtons({ account }: { account: MailAccountDto }) {
         }}
       />
     </div>
+  );
+}
+
+function AddressRow({ address, onEdit }: { address: MailAddressDto; onEdit: () => void }) {
+  const queryClient = useQueryClient();
+  const remove = useMutation({
+    mutationFn: () => api.delete(`/mail-addresses/${address.id}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey });
+      toast.success(`${address.address} deleted`);
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-5 py-4">
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-neutral-900">{address.address}</p>
+        <p className="text-sm text-neutral-600">
+          Sends as “{address.displayName}” ·{' '}
+          {address.owners.length ? (
+            <>goes to {address.owners.map((o) => o.name).join(', ')}</>
+          ) : (
+            <span className="text-red-600">nobody receives it (mail to it bounces)</span>
+          )}
+        </p>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Button size="sm" variant="ghost" onClick={onEdit} aria-label={`Edit ${address.address}`}>
+          <Pencil className="size-3.5" aria-hidden />
+        </Button>
+        <Button
+          size="sm"
+          variant="danger-ghost"
+          aria-label={`Delete ${address.address}`}
+          disabled={remove.isPending}
+          onClick={() => {
+            if (window.confirm(`Delete ${address.address}? Mail sent to it will bounce.`)) {
+              remove.mutate();
+            }
+          }}
+        >
+          <Trash2 className="size-3.5" aria-hidden />
+        </Button>
+      </div>
+    </li>
+  );
+}
+
+/** Create a shared address, or change its name and who receives it. */
+function AddressDialog({
+  address,
+  accounts,
+  domain,
+  onClose,
+}: {
+  address: MailAddressDto | null;
+  accounts: MailAccountDto[];
+  domain: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [localPart, setLocalPart] = useState(address?.localPart ?? '');
+  const [displayName, setDisplayName] = useState(address?.displayName ?? '');
+  const [touchedName, setTouchedName] = useState(!!address);
+  const [owners, setOwners] = useState<Set<string>>(
+    new Set(address?.owners.map((o) => o.id) ?? []),
+  );
+
+  const save = useMutation({
+    mutationFn: () =>
+      address
+        ? api.patch(`/mail-addresses/${address.id}`, { displayName, ownerIds: [...owners] })
+        : api.post('/mail-addresses', { localPart, displayName, ownerIds: [...owners] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey });
+      toast.success(address ? 'Saved' : `${localPart}@${domain} created`);
+      onClose();
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+
+  return (
+    <Modal open onClose={onClose} title={address ? address.address : 'New shared address'}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate();
+        }}
+        className="space-y-4"
+      >
+        {!address && (
+          <Field label="Address">
+            {(p) => (
+              <div className="flex items-center gap-2">
+                <Input
+                  {...p}
+                  value={localPart}
+                  onChange={(e) => {
+                    const value = e.target.value.toLowerCase().replace(/@.*$/, '');
+                    setLocalPart(value);
+                    if (!touchedName) setDisplayName(value ? suggestAddressName(value) : '');
+                  }}
+                  placeholder="hr"
+                  autoFocus
+                  required
+                />
+                <span className="shrink-0 text-sm text-neutral-600">@{domain}</span>
+              </div>
+            )}
+          </Field>
+        )}
+        <Field label="Name on its emails" hint="What recipients see, for example Muvance HR.">
+          {(p) => (
+            <Input
+              {...p}
+              value={displayName}
+              onChange={(e) => {
+                setTouchedName(true);
+                setDisplayName(e.target.value);
+              }}
+              placeholder="Muvance HR"
+              required
+            />
+          )}
+        </Field>
+        <fieldset>
+          <legend className="mb-1.5 text-sm font-medium text-neutral-800">
+            Who receives it and can send as it
+          </legend>
+          <div className="max-h-60 space-y-1 overflow-y-auto rounded-xl border border-hud/20 p-2">
+            {accounts.map((account) => (
+              <label
+                key={account.id}
+                className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-black/[0.03]"
+              >
+                <input
+                  type="checkbox"
+                  checked={owners.has(account.id)}
+                  onChange={(e) =>
+                    setOwners((set) => {
+                      const next = new Set(set);
+                      if (e.target.checked) next.add(account.id);
+                      else next.delete(account.id);
+                      return next;
+                    })
+                  }
+                  className="size-4"
+                />
+                <span className="text-sm">
+                  {account.name} <span className="text-neutral-500">{account.address}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={save.isPending || owners.size === 0}>
+            {address ? 'Save' : 'Create address'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

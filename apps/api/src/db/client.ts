@@ -1,4 +1,5 @@
 import { MongoClient, type Db } from 'mongodb';
+import { suggestAddressName } from '@muvance/shared';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import type {
@@ -6,6 +7,7 @@ import type {
   ApplicationDoc,
   CallRecordingDoc,
   MailAccountDoc,
+  MailAddressDoc,
   WebmailProfileDoc,
   WebmailSessionDoc,
   BlockedTimeDoc,
@@ -85,6 +87,7 @@ export const collections = {
   meetJoinRequests: () => getDb().collection<MeetJoinRequestDoc>('meetJoinRequests'),
   callRecordings: () => getDb().collection<CallRecordingDoc>('callRecordings'),
   mailAccounts: () => getDb().collection<MailAccountDoc>('mailAccounts'),
+  mailAddresses: () => getDb().collection<MailAddressDoc>('mailAddresses'),
   webmailSessions: () => getDb().collection<WebmailSessionDoc>('webmailSessions'),
   webmailProfiles: () => getDb().collection<WebmailProfileDoc>('webmailProfiles'),
 };
@@ -155,6 +158,42 @@ export async function migrate(database: Db) {
     await settings.updateOne({ _id: 'booking' }, { $set: { availability: { ...rest, weekly } } });
   }
 
+  // Mail: each mailbox's extra addresses (aliases) became shared addresses of their own.
+  const withAliases = await database
+    .collection('mailAccounts')
+    .find({ aliases: { $exists: true } })
+    .toArray();
+  for (const account of withAliases) {
+    for (const localPart of (account.aliases as string[] | undefined) ?? []) {
+      const domain = String(account.address).split('@')[1];
+      await database.collection('mailAddresses').updateOne(
+        { localPart },
+        {
+          $setOnInsert: {
+            localPart,
+            address: `${localPart}@${domain}`,
+            displayName: suggestAddressName(localPart),
+            createdAt: new Date(),
+          },
+          $addToSet: { ownerIds: account._id },
+          $set: { updatedAt: new Date() },
+        },
+        { upsert: true },
+      );
+    }
+    await database
+      .collection('mailAccounts')
+      .updateOne({ _id: account._id }, { $unset: { aliases: '' } });
+  }
+  if (
+    await database
+      .collection('mailAccounts')
+      .indexExists('aliases_1')
+      .catch(() => false)
+  ) {
+    await database.collection('mailAccounts').dropIndex('aliases_1');
+  }
+
   // Usernames: the old full unique index on email is replaced by a partial one.
   const users = database.collection('users');
   await users.updateMany(
@@ -209,7 +248,8 @@ async function ensureIndexes(database: Db) {
     database.collection('callRecordings').createIndex({ egressId: 1 }, { unique: true }),
     database.collection('callRecordings').createIndex({ code: 1, status: 1 }),
     database.collection('mailAccounts').createIndex({ localPart: 1 }, { unique: true }),
-    database.collection('mailAccounts').createIndex({ aliases: 1 }),
+    database.collection('mailAddresses').createIndex({ localPart: 1 }, { unique: true }),
+    database.collection('mailAddresses').createIndex({ ownerIds: 1 }),
     database.collection('webmailSessions').createIndex({ tokenHash: 1 }, { unique: true }),
     database.collection('webmailSessions').createIndex({ address: 1 }),
     database.collection('webmailSessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),

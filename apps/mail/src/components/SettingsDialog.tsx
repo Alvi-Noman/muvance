@@ -9,8 +9,18 @@ import { Avatar, Button, Dialog, Spinner } from './ui';
 export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { me, toast } = useMail();
   const queryClient = useQueryClient();
-  const [displayName, setDisplayName] = useState(me.displayName);
-  const [signature, setSignature] = useState(me.signature);
+  // Which of your addresses you're editing (your own, or a shared one like hr@).
+  const [editing, setEditing] = useState(me.address);
+  const identity = me.identities.find((i) => i.address === editing) ?? me.identities[0]!;
+  const [displayName, setDisplayName] = useState(identity.name);
+  const [signature, setSignature] = useState(identity.signature);
+  const pick = (address: string) => {
+    const next = me.identities.find((i) => i.address === address);
+    if (!next) return;
+    setEditing(address);
+    setDisplayName(next.name);
+    setSignature(next.signature);
+  };
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [busy, setBusy] = useState<'profile' | 'password' | 'picture' | null>(null);
@@ -48,10 +58,9 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
     e.preventDefault();
     setBusy('profile');
     try {
-      await api.put('/settings', { displayName, signature });
+      await api.put('/identities', { address: editing, name: displayName, signature });
       await queryClient.invalidateQueries({ queryKey: ['me'] });
-      toast('Settings saved');
-      onClose();
+      toast('Saved');
     } catch (error) {
       toast(errorMessage(error));
     } finally {
@@ -133,8 +142,32 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
       </div>
 
       <form onSubmit={saveProfile} className="space-y-4">
+        {me.identities.length > 1 && (
+          <div>
+            <p className="text-sm font-medium">Your addresses</p>
+            <p className="text-xs text-muted">
+              Each has its own name and signature. Choose one to edit.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {me.identities.map((i) => (
+                <button
+                  key={i.address}
+                  type="button"
+                  onClick={() => pick(i.address)}
+                  className={
+                    i.address === editing
+                      ? 'rounded-full bg-ink px-3 py-1.5 text-xs font-medium text-white'
+                      : 'rounded-full border border-line px-3 py-1.5 text-xs hover:bg-canvas'
+                  }
+                >
+                  {i.address}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <label className="block text-sm font-medium">
-          Your name, as people see it
+          {identity.primary ? 'Your name, as people see it' : `Name for ${identity.address}`}
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -148,7 +181,9 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
             value={signature}
             onChange={(e) => setSignature(e.target.value)}
             rows={4}
-            placeholder={'Alvi Noman\nMuvance · muvance.com'}
+            placeholder={
+              identity.primary ? 'Alvi Noman\nMuvance · muvance.com' : 'Muvance HR\nmuvance.com'
+            }
             className={`${field} resize-none`}
           />
           <span className="mt-1 block text-xs font-normal text-muted">

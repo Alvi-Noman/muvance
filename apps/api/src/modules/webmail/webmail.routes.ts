@@ -9,12 +9,14 @@ import {
   webmailComposeSchema,
   webmailDeleteSchema,
   webmailFlagsSchema,
+  webmailIdentitySchema,
   webmailLoginSchema,
   webmailMoveSchema,
   webmailPasswordSchema,
   webmailSettingsSchema,
   type WebmailComposeInput,
   type WebmailContact,
+  type WebmailIdentity,
   type WebmailMeDto,
   type WebmailMessage,
   type WebmailMessageList,
@@ -26,7 +28,7 @@ import { collections } from '@/db/client';
 import { loginLimiter } from '@/middlewares/rate-limit';
 import { validateBody } from '@/middlewares/validate';
 import { verifySha512Crypt } from '@/lib/sha512-crypt';
-import { mailService, webmailAvatarUrl } from '@/modules/mail/mail.service';
+import { mailService, senderNameOf, webmailAvatarUrl } from '@/modules/mail/mail.service';
 import { sendAvatar } from '@/modules/mail/send-avatar';
 import { HttpError } from '@/utils/http-error';
 import {
@@ -58,14 +60,40 @@ async function profileFor(address: string) {
   const account = await collections
     .mailAccounts()
     .findOne({ address }, { projection: { 'avatar.data': 0 } });
+  const displayName =
+    doc?.displayName || (account ? senderNameOf(account) : '') || address.split('@')[0]!;
+  const signature = doc?.signature ?? '';
+  const shared = account ? await mailService.addressesOf(account._id) : [];
+  const identities: WebmailIdentity[] = [
+    { address, name: displayName, signature, primary: true },
+    ...shared.map((a) => {
+      const own = doc?.identities?.find((i) => i.address === a.address);
+      return {
+        address: a.address,
+        name: own?.name || a.displayName,
+        // Until they write one for this address, their usual signature.
+        signature: own?.signature ?? signature,
+        primary: false,
+      };
+    }),
+  ];
   return {
     avatarUrl: account ? webmailAvatarUrl(account) : null,
-    displayName: doc?.displayName || account?.name || address.split('@')[0]!,
-    signature: doc?.signature ?? '',
+    displayName,
+    signature,
+    identities,
     name: account?.name ?? '',
     mustChangePassword: account?.mustChangePassword ?? false,
     contacts: doc?.contacts ?? [],
   };
+}
+
+/** The address (and name) to send from: one of yours, or your own address. */
+async function identityFor(address: string, from?: string) {
+  const { identities } = await profileFor(address);
+  const chosen = from ? identities.find((i) => i.address === from) : identities[0];
+  if (!chosen) throw HttpError.forbidden(`You can't send as ${from}.`);
+  return chosen;
 }
 
 const folderParam = (req: Request) => {
@@ -105,6 +133,7 @@ webmailRouter.get('/me', async (req, res) => {
     signature: profile.signature,
     mustChangePassword: profile.mustChangePassword,
     avatarUrl: profile.avatarUrl,
+    identities: profile.identities,
   };
   res.json(me);
 });
@@ -118,6 +147,38 @@ webmailRouter.put('/settings', validateBody(webmailSettingsSchema), async (req, 
       { $set: req.body, $setOnInsert: { contacts: [] } },
       { upsert: true },
     );
+  res.status(204).end();
+});
+
+/** The name and signature for one of your addresses. */
+webmailRouter.put('/identities', validateBody(webmailIdentitySchema), async (req, res) => {
+  const session = mailSession(req);
+  const { address, name, signature } = req.body as {
+    address: string;
+    name: string;
+    signature: string;
+  };
+  if (address === session.address) {
+    await collections
+      .webmailProfiles()
+      .updateOne(
+        { _id: session.address },
+        { $set: { displayName: name, signature }, $setOnInsert: { contacts: [] } },
+        { upsert: true },
+      );
+  } else {
+    await identityFor(session.address, address); // must be one of theirs
+    await collections
+      .webmailProfiles()
+      .updateOne(
+        { _id: session.address },
+        { $pull: { identities: { address } }, $setOnInsert: { contacts: [] } },
+        { upsert: true },
+      );
+    await collections
+      .webmailProfiles()
+      .updateOne({ _id: session.address }, { $push: { identities: { address, name, signature } } });
+  }
   res.status(204).end();
 });
 
@@ -435,9 +496,9 @@ webmailRouter.post('/messages/delete', validateBody(webmailDeleteSchema), async 
 // --- Writing ------------------------------------------------------------------------------
 
 async function buildMessage(session: MailSession, input: WebmailComposeInput, keepBcc: boolean) {
-  const profile = await profileFor(session.address);
+  const identity = await identityFor(session.address, input.from);
   const composer = new MailComposer({
-    from: { name: profile.displayName, address: session.address },
+    from: { name: identity.name, address: identity.address },
     to: input.to,
     cc: input.cc,
     bcc: input.bcc,
@@ -496,7 +557,8 @@ webmailRouter.post('/send', validateBody(webmailComposeSchema), async (req, res)
     tls: { servername: env.MAIL_HOST },
   });
   try {
-    await transport.sendMail({ envelope: { from: session.address, to: recipients }, raw });
+    const identity = await identityFor(session.address, input.from);
+    await transport.sendMail({ envelope: { from: identity.address, to: recipients }, raw });
   } catch (error) {
     const code = (error as { responseCode?: number }).responseCode;
     if (code === 535) throw HttpError.unauthorized('Your password changed. Please sign in again.');
