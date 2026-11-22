@@ -271,6 +271,8 @@ export interface MailAccountDoc {
   name: string;
   /** SHA512-CRYPT ("$6$..."), the scheme the mail server reads. */
   passwordHash: string;
+  /** Set by an admin (new mailbox or reset): the person chooses their own at next sign-in. */
+  mustChangePassword?: boolean;
   quotaGb: number;
   /** Extra local parts that deliver here, e.g. "sales". */
   aliases: string[];

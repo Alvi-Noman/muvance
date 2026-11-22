@@ -57,6 +57,7 @@ async function profileFor(address: string) {
     displayName: doc?.displayName || account?.name || address.split('@')[0]!,
     signature: doc?.signature ?? '',
     name: account?.name ?? '',
+    mustChangePassword: account?.mustChangePassword ?? false,
     contacts: doc?.contacts ?? [],
   };
 }
@@ -96,6 +97,7 @@ webmailRouter.get('/me', async (req, res) => {
     name: profile.name,
     displayName: profile.displayName,
     signature: profile.signature,
+    mustChangePassword: profile.mustChangePassword,
   };
   res.json(me);
 });
@@ -114,8 +116,13 @@ webmailRouter.put('/settings', validateBody(webmailSettingsSchema), async (req, 
 
 webmailRouter.post('/password', validateBody(webmailPasswordSchema), async (req, res) => {
   const session = mailSession(req);
-  const { current, next } = req.body as { current: string; next: string };
-  const changed = await mailService.changeOwnPassword(session.address, current, next);
+  const { current, next } = req.body as { current?: string; next: string };
+  const account = await collections.mailAccounts().findOne({ address: session.address });
+  // Right after signing in with an admin-set password, this session already proves it.
+  const proof = current || (account?.mustChangePassword ? session.password : '');
+  if (next === proof)
+    throw HttpError.badRequest('Choose a password different from the current one.');
+  const changed = await mailService.changeOwnPassword(session.address, proof, next);
   if (!changed) throw HttpError.forbidden('Your current password is wrong.');
   // Every webmail sign-in ended with the change; keep this one signed in with the new password.
   await webmailSessions.create(session.address, next, res);

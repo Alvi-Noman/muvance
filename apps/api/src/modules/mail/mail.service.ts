@@ -113,6 +113,7 @@ export const mailService = {
       address: `${input.localPart}@${env.MAIL_DOMAIN}`,
       name: input.name,
       passwordHash: sha512Crypt(input.password),
+      mustChangePassword: true,
       quotaGb: input.quotaGb,
       aliases: input.aliases,
       createdBy: by._id,
@@ -151,15 +152,22 @@ export const mailService = {
     return this.get(id);
   },
 
-  /** Sets a new password and signs the person out of webmail everywhere. */
-  async setPassword(id: ObjectId, password: string) {
+  /**
+   * Sets a new password and signs the person out of webmail everywhere. An admin's reset makes them
+   * choose their own at next sign-in.
+   */
+  async setPassword(id: ObjectId, password: string, { byOwner = false } = {}) {
     const doc = await this.get(id);
-    await collections
-      .mailAccounts()
-      .updateOne(
-        { _id: id },
-        { $set: { passwordHash: sha512Crypt(password), updatedAt: new Date() } },
-      );
+    await collections.mailAccounts().updateOne(
+      { _id: id },
+      {
+        $set: {
+          passwordHash: sha512Crypt(password),
+          mustChangePassword: !byOwner,
+          updatedAt: new Date(),
+        },
+      },
+    );
     await this.sync();
     await webmailSessions.destroyAll(doc.address);
   },
@@ -179,7 +187,7 @@ export const mailService = {
   async changeOwnPassword(address: string, current: string, next: string) {
     const doc = await collections.mailAccounts().findOne({ address: address.trim().toLowerCase() });
     if (!doc || !verifySha512Crypt(current, doc.passwordHash)) return false;
-    await this.setPassword(doc._id, next);
+    await this.setPassword(doc._id, next, { byOwner: true });
     return true;
   },
 };

@@ -328,7 +328,10 @@ function CreateDialog({
             </div>
           )}
         </Field>
-        <Field label="Password" hint="At least 10 characters. They can change it in webmail.">
+        <Field
+          label="Starting password"
+          hint="At least 10 characters. They choose their own when they first sign in."
+        >
           {(p) => <PasswordInput value={password} onChange={setPassword} fieldProps={p} />}
         </Field>
         <Field
@@ -490,13 +493,13 @@ function SignInDetails({
   onClose: () => void;
 }) {
   const { copied, copy } = useCopy();
-  const message = `Your Muvance email is ready.\n\nSign in at: ${webmailUrl}\nEmail: ${address}\nPassword: ${password}\n\nYou can change the password after signing in (Settings → Password).`;
+  const message = `Your Muvance email is ready.\n\nSign in at: ${webmailUrl}\nEmail: ${address}\nPassword: ${password}\n\nWhen you first sign in, you'll choose your own password.`;
   return (
     <Modal
       open
       onClose={onClose}
       title="Sign-in details"
-      description="Send these to the person privately. The password isn't shown again."
+      description="Send these to the person privately. They'll choose their own password when they first sign in, so this one only works once."
     >
       <div className="space-y-2 rounded-xl border border-hud/20 bg-void/40 p-4 font-mono text-sm">
         <p>

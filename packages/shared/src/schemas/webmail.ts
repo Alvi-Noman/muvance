@@ -117,13 +117,16 @@ export const webmailSettingsSchema = z.object({
 export type WebmailSettings = z.infer<typeof webmailSettingsSchema>;
 
 export const webmailPasswordSchema = z.object({
-  current: z.string().min(1),
+  /** Not needed right after signing in with a password an admin set (the first-sign-in change). */
+  current: z.string().max(200).optional(),
   next: z.string().min(10, 'At least 10 characters').max(128),
 });
 
 export interface WebmailMeDto extends WebmailSettings {
   address: string;
   name: string;
+  /** The password was set by an admin: they choose their own before seeing their inbox. */
+  mustChangePassword: boolean;
 }
 
 export interface WebmailContact {

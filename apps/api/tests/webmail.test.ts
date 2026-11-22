@@ -97,4 +97,44 @@ describe('Muvance Mail sign-in', () => {
       .send({ password: 'admin-set-pass-3' });
     expect((await web.get('/api/webmail/me')).status).toBe(401);
   });
+
+  it('makes people choose their own password at first sign-in, and again after an admin reset', async () => {
+    const { admin, account } = await newMailbox('nila');
+    const web = request.agent(app);
+    await web.post('/api/webmail/login').send({ email: 'nila', password: 'mailbox-password-1' });
+    expect(((await web.get('/api/webmail/me')).body as WebmailMeDto).mustChangePassword).toBe(true);
+
+    // The same password again isn't a change.
+    expect(
+      (await web.post('/api/webmail/password').send({ next: 'mailbox-password-1' })).status,
+    ).toBe(400);
+    // No current password needed for this first change: the session proves it.
+    expect(
+      (await web.post('/api/webmail/password').send({ next: 'nilas-own-pass-9' })).status,
+    ).toBe(204);
+    expect(((await web.get('/api/webmail/me')).body as WebmailMeDto).mustChangePassword).toBe(
+      false,
+    );
+
+    // The admin's starting password no longer works; hers does.
+    const login = (password: string) =>
+      request(app).post('/api/webmail/login').send({ email: 'nila', password });
+    expect((await login('mailbox-password-1')).status).toBe(401);
+    expect((await login('nilas-own-pass-9')).status).toBe(200);
+
+    // Later changes need the current password.
+    expect((await web.post('/api/webmail/password').send({ next: 'another-pass-77' })).status).toBe(
+      403,
+    );
+
+    // An admin reset asks her to choose again.
+    await admin
+      .post(`/api/mail-accounts/${account.id}/password`)
+      .send({ password: 'temporary-pass-5' });
+    const again = request.agent(app);
+    await again.post('/api/webmail/login').send({ email: 'nila', password: 'temporary-pass-5' });
+    expect(((await again.get('/api/webmail/me')).body as WebmailMeDto).mustChangePassword).toBe(
+      true,
+    );
+  });
 });

@@ -4,6 +4,8 @@ import { afterAll, beforeAll, inject } from 'vitest';
 // Must run before the app's env module is imported (setup files run before test files).
 process.env.MONGODB_URI = inject('mongoUri');
 process.env.MONGODB_DB = `muvance_test_${randomUUID().slice(0, 8)}`;
+// Each test file writes the mail server's account files into its own folder (files run in parallel).
+process.env.MAIL_CONFIG_DIR = `${process.env.MAIL_CONFIG_DIR}/${process.env.MONGODB_DB}`;
 
 beforeAll(async () => {
   const { connectDb } = await import('@/db/client');

@@ -5,6 +5,7 @@ import { createBrowserRouter, Navigate, RouterProvider } from 'react-router';
 import { setSignedOutHandler } from '@/lib/api';
 import { useMe } from '@/lib/queries';
 import { MailApp } from '@/pages/MailApp';
+import { ChoosePasswordPage } from '@/pages/ChoosePasswordPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { Spinner } from '@/components/ui';
 import '@/styles/globals.css';
@@ -29,7 +30,9 @@ function Root() {
       </div>
     );
   }
-  return me ? <MailApp me={me} /> : <LoginPage />;
+  if (!me) return <LoginPage />;
+  if (me.mustChangePassword) return <ChoosePasswordPage me={me} />;
+  return <MailApp me={me} />;
 }
 
 const router = createBrowserRouter([
