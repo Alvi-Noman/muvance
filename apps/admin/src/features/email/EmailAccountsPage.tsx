@@ -41,7 +41,8 @@ function generatePassword() {
 
 /** "Nadia Karim" -> "nadia" (the first name), as a starting suggestion for the address. */
 function suggestLocalPart(name: string) {
-  return (name.trim().split(/\s+/)[0] ?? '')
+  // Someone typing an address ("hello@muvance.com") means the part before the @.
+  return (name.trim().split(/\s+/)[0]?.split('@')[0] ?? '')
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[^a-z0-9._-]/g, '');
@@ -372,7 +373,12 @@ function CreateDialog({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="New mailbox">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="New mailbox"
+      description="For a person: their own sign-in and inbox. For team addresses like hr@, accounts@ or hello@, use Shared addresses on this page instead."
+    >
       <form onSubmit={submit} className="space-y-4">
         <Field label="Their name">
           {(p) => (
