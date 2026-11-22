@@ -127,7 +127,11 @@ export interface WebmailMeDto extends WebmailSettings {
   name: string;
   /** The password was set by an admin: they choose their own before seeing their inbox. */
   mustChangePassword: boolean;
+  avatarUrl: string | null;
 }
+
+/** Teammates' profile pictures, by email address, for showing next to their mail. */
+export type WebmailTeamAvatars = Record<string, string>;
 
 export interface WebmailContact {
   name: string;

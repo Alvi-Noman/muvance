@@ -1,6 +1,6 @@
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { ObjectId } from 'mongodb';
+import { Binary, ObjectId } from 'mongodb';
 import type {
   CreateMailAccountInput,
   MailAccountDto,
@@ -28,7 +28,40 @@ export function toMailAccountDto(doc: MailAccountDoc): MailAccountDto {
     aliases: doc.aliases.map((a) => `${a}@${env.MAIL_DOMAIN}`),
     createdAt: doc.createdAt.toISOString(),
     createdByName: doc.createdByName,
+    avatarUrl: doc.avatar
+      ? `/api/mail-accounts/${doc._id.toHexString()}/avatar?v=${doc.avatar.updatedAt.getTime()}`
+      : null,
   };
+}
+
+/** Webmail's URL for someone's picture (versioned, so a new picture shows at once). */
+export function webmailAvatarUrl(doc: Pick<MailAccountDoc, 'address' | 'avatar'>) {
+  return doc.avatar
+    ? `/api/webmail/avatars/${encodeURIComponent(doc.address)}?v=${doc.avatar.updatedAt.getTime()}`
+    : null;
+}
+
+/** Lists without the picture bytes (only whether there is one, and when it changed). */
+const withoutAvatarBytes = { 'avatar.data': 0 } as const;
+
+const signatures: Record<string, (b: Buffer) => boolean> = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  'image/png': (b) =>
+    b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  'image/webp': (b) =>
+    b.subarray(0, 4).toString('ascii') === 'RIFF' && b.subarray(8, 12).toString('ascii') === 'WEBP',
+};
+
+/** Turns an uploaded data URL into image bytes, checking it really is the image type it claims. */
+function decodeAvatar(dataUrl: string) {
+  const match = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(dataUrl);
+  const type = match?.[1];
+  const bytes = match ? Buffer.from(match[2]!, 'base64') : Buffer.alloc(0);
+  if (!type || !signatures[type]?.(bytes)) {
+    throw HttpError.badRequest("That file isn't a JPG, PNG or WebP picture.");
+  }
+  if (bytes.length > 400_000) throw HttpError.badRequest('That picture is too large.');
+  return { data: new Binary(bytes), contentType: type, updatedAt: new Date() };
 }
 
 async function writeAtomically(file: string, content: string, mode = 0o600) {
@@ -64,7 +97,11 @@ export const mailService = {
    * checks them every couple of seconds and applies changes on its own.
    */
   async sync() {
-    const accounts = await collections.mailAccounts().find().sort({ createdAt: 1 }).toArray();
+    const accounts = await collections
+      .mailAccounts()
+      .find({}, { projection: withoutAvatarBytes })
+      .sort({ createdAt: 1 })
+      .toArray();
     const domain = env.MAIL_DOMAIN;
     const used = new Set(accounts.flatMap((a) => [a.localPart, ...a.aliases]));
 
@@ -90,7 +127,11 @@ export const mailService = {
   },
 
   async list(): Promise<MailAccountsDto> {
-    const accounts = await collections.mailAccounts().find().sort({ createdAt: 1 }).toArray();
+    const accounts = await collections
+      .mailAccounts()
+      .find({}, { projection: withoutAvatarBytes })
+      .sort({ createdAt: 1 })
+      .toArray();
     return {
       domain: env.MAIL_DOMAIN,
       webmailUrl: `https://${env.MAIL_HOST}`,
@@ -181,6 +222,21 @@ export const mailService = {
     await collections.mailAccounts().deleteOne({ _id: id });
     await this.sync();
     await webmailSessions.destroyAll(doc.address);
+  },
+
+  /** Sets or removes (null) a mailbox's profile picture. */
+  async setAvatar(filter: { _id: ObjectId } | { address: string }, image: string | null) {
+    const avatar = image ? decodeAvatar(image) : null;
+    const result = await collections
+      .mailAccounts()
+      .updateOne(filter, { $set: { avatar, updatedAt: new Date() } });
+    if (!result.matchedCount) throw HttpError.notFound('Email account not found');
+  },
+
+  async avatar(filter: { _id: ObjectId } | { address: string }) {
+    const doc = await collections.mailAccounts().findOne(filter, { projection: { avatar: 1 } });
+    if (!doc?.avatar) throw HttpError.notFound('No picture');
+    return doc.avatar;
   },
 
   /** Webmail's "change password": the person proves the current one first. */

@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
+import { Camera } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, errorMessage } from '@/lib/api';
+import { squareAvatar } from '@/lib/avatar-image';
 import { useMail } from '@/pages/MailApp';
-import { Button, Dialog } from './ui';
+import { Avatar, Button, Dialog, Spinner } from './ui';
 
 export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { me, toast } = useMail();
@@ -11,7 +13,36 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
   const [signature, setSignature] = useState(me.signature);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
-  const [busy, setBusy] = useState<'profile' | 'password' | null>(null);
+  const [busy, setBusy] = useState<'profile' | 'password' | 'picture' | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const changePicture = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy('picture');
+    try {
+      await api.put('/avatar', { image: await squareAvatar(file) });
+      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      await queryClient.invalidateQueries({ queryKey: ['team-avatars'] });
+      toast('Picture updated');
+    } catch (error) {
+      toast(errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const removePicture = async () => {
+    setBusy('picture');
+    try {
+      await api.delete('/avatar');
+      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      await queryClient.invalidateQueries({ queryKey: ['team-avatars'] });
+    } catch (error) {
+      toast(errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const saveProfile = async (e: FormEvent) => {
     e.preventDefault();
@@ -48,6 +79,59 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <Dialog open={open} onClose={onClose} title="Settings">
+      <div className="mb-6 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => fileInput.current?.click()}
+          className="group relative rounded-full"
+          aria-label="Change picture"
+        >
+          <Avatar
+            name={me.displayName}
+            seed={me.address}
+            src={me.avatarUrl}
+            className="size-16 text-lg"
+          />
+          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition group-hover:opacity-100">
+            {busy === 'picture' ? <Spinner /> : <Camera className="size-5" />}
+          </span>
+        </button>
+        <div>
+          <p className="text-sm font-medium">Profile picture</p>
+          <p className="text-xs text-muted">Your team sees it next to your mail.</p>
+          <div className="mt-2 flex gap-2">
+            <Button
+              variant="secondary"
+              className="h-8 px-3"
+              onClick={() => fileInput.current?.click()}
+              disabled={busy === 'picture'}
+            >
+              {me.avatarUrl ? 'Change' : 'Upload'}
+            </Button>
+            {me.avatarUrl && (
+              <Button
+                variant="ghost"
+                className="h-8 px-3"
+                onClick={() => void removePicture()}
+                disabled={busy === 'picture'}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+          onChange={(e) => {
+            void changePicture(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
+      </div>
+
       <form onSubmit={saveProfile} className="space-y-4">
         <label className="block text-sm font-medium">
           Your name, as people see it

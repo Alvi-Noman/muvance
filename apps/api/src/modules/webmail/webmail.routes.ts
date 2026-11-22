@@ -5,6 +5,7 @@ import { simpleParser } from 'mailparser';
 import nodemailer from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer';
 import {
+  mailAvatarSchema,
   webmailComposeSchema,
   webmailDeleteSchema,
   webmailFlagsSchema,
@@ -18,13 +19,15 @@ import {
   type WebmailMessage,
   type WebmailMessageList,
   type WebmailMessageSummary,
+  type WebmailTeamAvatars,
 } from '@muvance/shared';
 import { env } from '@/config/env';
 import { collections } from '@/db/client';
 import { loginLimiter } from '@/middlewares/rate-limit';
 import { validateBody } from '@/middlewares/validate';
 import { verifySha512Crypt } from '@/lib/sha512-crypt';
-import { mailService } from '@/modules/mail/mail.service';
+import { mailService, webmailAvatarUrl } from '@/modules/mail/mail.service';
+import { sendAvatar } from '@/modules/mail/send-avatar';
 import { HttpError } from '@/utils/http-error';
 import {
   decodePreview,
@@ -52,8 +55,11 @@ function rememberPreview(key: string, text: string) {
 
 async function profileFor(address: string) {
   const doc = await collections.webmailProfiles().findOne({ _id: address });
-  const account = await collections.mailAccounts().findOne({ address });
+  const account = await collections
+    .mailAccounts()
+    .findOne({ address }, { projection: { 'avatar.data': 0 } });
   return {
+    avatarUrl: account ? webmailAvatarUrl(account) : null,
     displayName: doc?.displayName || account?.name || address.split('@')[0]!,
     signature: doc?.signature ?? '',
     name: account?.name ?? '',
@@ -98,6 +104,7 @@ webmailRouter.get('/me', async (req, res) => {
     displayName: profile.displayName,
     signature: profile.signature,
     mustChangePassword: profile.mustChangePassword,
+    avatarUrl: profile.avatarUrl,
   };
   res.json(me);
 });
@@ -112,6 +119,34 @@ webmailRouter.put('/settings', validateBody(webmailSettingsSchema), async (req, 
       { upsert: true },
     );
   res.status(204).end();
+});
+
+webmailRouter.put('/avatar', validateBody(mailAvatarSchema), async (req, res) => {
+  await mailService.setAvatar({ address: mailSession(req).address }, req.body.image as string);
+  res.status(204).end();
+});
+
+webmailRouter.delete('/avatar', async (req, res) => {
+  await mailService.setAvatar({ address: mailSession(req).address }, null);
+  res.status(204).end();
+});
+
+/** Teammates' pictures, shown next to their mail. */
+webmailRouter.get('/team-avatars', async (_req, res) => {
+  const accounts = await collections
+    .mailAccounts()
+    .find({ avatar: { $type: 'object' } }, { projection: { address: 1, 'avatar.updatedAt': 1 } })
+    .toArray();
+  const map: WebmailTeamAvatars = {};
+  for (const a of accounts) {
+    const url = webmailAvatarUrl(a);
+    if (url) map[a.address] = url;
+  }
+  res.json(map);
+});
+
+webmailRouter.get('/avatars/:address', async (req, res) => {
+  sendAvatar(res, await mailService.avatar({ address: String(req.params.address).toLowerCase() }));
 });
 
 webmailRouter.post('/password', validateBody(webmailPasswordSchema), async (req, res) => {

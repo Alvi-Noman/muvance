@@ -35,12 +35,24 @@ export function Spinner({ className }: { className?: string }) {
 export function Avatar({
   name,
   seed,
+  src,
   className,
 }: {
   name: string;
   seed: string;
+  /** A profile picture; initials are shown when there's none. */
+  src?: string | null;
   className?: string;
 }) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className={cn('inline-block shrink-0 rounded-full object-cover', className)}
+      />
+    );
+  }
   return (
     <span
       className={cn(

@@ -41,6 +41,17 @@ export type UpdateMailAccountInput = z.infer<typeof updateMailAccountSchema>;
 
 export const setMailPasswordSchema = z.object({ password: mailPasswordSchema });
 
+/** A profile picture: a small square image as a data URL (the browser resizes it first). */
+export const mailAvatarSchema = z.object({
+  image: z
+    .string()
+    .max(600_000, 'That picture is too large')
+    .regex(
+      /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/,
+      'Use a JPG, PNG or WebP picture',
+    ),
+});
+
 export interface MailAccountDto {
   id: string;
   address: string;
@@ -50,6 +61,8 @@ export interface MailAccountDto {
   aliases: string[];
   createdAt: string;
   createdByName: string;
+  /** Profile picture URL (admin), or null for initials. */
+  avatarUrl: string | null;
 }
 
 export interface MailAccountsDto {

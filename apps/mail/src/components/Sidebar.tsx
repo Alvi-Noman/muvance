@@ -173,7 +173,7 @@ function AccountMenu() {
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left transition hover:bg-black/[0.04]"
       >
-        <Avatar name={me.displayName} seed={me.address} className="size-8" />
+        <Avatar name={me.displayName} seed={me.address} src={me.avatarUrl} className="size-8" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{me.displayName}</span>
           <span className="block truncate text-xs text-muted">{me.address}</span>

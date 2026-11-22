@@ -14,7 +14,13 @@ import {
 } from 'lucide-react';
 import type { WebmailMessageSummary } from '@muvance/shared';
 import { errorMessage } from '@/lib/api';
-import { useFolders, useMessageActions, useMessages, useRefresh } from '@/lib/queries';
+import {
+  useFolders,
+  useMessageActions,
+  useMessages,
+  useRefresh,
+  useTeamAvatars,
+} from '@/lib/queries';
 import { cn, displayName, shortDate } from '@/lib/utils';
 import { useMail } from '@/pages/MailApp';
 import { Avatar, IconButton, Spinner } from './ui';
@@ -273,6 +279,7 @@ function Row({
   onToggleRead: () => void;
   onToggleStar: () => void;
 }) {
+  const avatars = useTeamAvatars().data;
   const who = showRecipient
     ? m.to.map((t) => displayName(t)).join(', ') || '(no recipient)'
     : displayName(m.from);
@@ -292,6 +299,7 @@ function Row({
         <Avatar
           name={who}
           seed={seed}
+          src={avatars?.[seed]}
           className={cn('size-9 transition', checked ? 'opacity-0' : 'group-hover:opacity-0')}
         />
         <input

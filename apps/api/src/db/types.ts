@@ -273,6 +273,8 @@ export interface MailAccountDoc {
   passwordHash: string;
   /** Set by an admin (new mailbox or reset): the person chooses their own at next sign-in. */
   mustChangePassword?: boolean;
+  /** Profile picture, a small square image set by an admin or the person. */
+  avatar?: { data: Binary; contentType: string; updatedAt: Date } | null;
   quotaGb: number;
   /** Extra local parts that deliver here, e.g. "sales". */
   aliases: string[];

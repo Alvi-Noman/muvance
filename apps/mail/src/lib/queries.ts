@@ -4,6 +4,7 @@ import type {
   WebmailMeDto,
   WebmailMessage,
   WebmailMessageList,
+  WebmailTeamAvatars,
 } from '@muvance/shared';
 import { api, ApiClientError } from './api';
 
@@ -18,6 +19,15 @@ export function useMe() {
         throw error;
       }
     },
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Teammates' profile pictures by email address (changes rarely). */
+export function useTeamAvatars() {
+  return useQuery({
+    queryKey: ['team-avatars'],
+    queryFn: () => api.get<WebmailTeamAvatars>('/team-avatars'),
     staleTime: 5 * 60_000,
   });
 }

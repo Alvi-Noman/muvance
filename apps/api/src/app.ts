@@ -23,11 +23,20 @@ export function createApp() {
   const json = express.json({ limit: '100kb' });
   // Sending email and saving drafts carry attachments (base64), up to about 25 MB of files.
   const bigJson = express.json({ limit: '40mb' });
-  app.use((req, res, next) =>
-    req.path === '/api/webmail/send' || req.path === '/api/webmail/drafts'
-      ? bigJson(req, res, next)
-      : json(req, res, next),
-  );
+  // Profile pictures arrive as small images (resized in the browser), under 1 MB.
+  const pictureJson = express.json({ limit: '1mb' });
+  app.use((req, res, next) => {
+    if (req.path === '/api/webmail/send' || req.path === '/api/webmail/drafts') {
+      return bigJson(req, res, next);
+    }
+    if (
+      req.path === '/api/webmail/avatar' ||
+      /^\/api\/mail-accounts\/[^/]+\/avatar$/.test(req.path)
+    ) {
+      return pictureJson(req, res, next);
+    }
+    return json(req, res, next);
+  });
   app.use(cookieParser());
   if (!isTest) app.use(pinoHttp({ logger }));
   app.use('/api', apiLimiter, sameOrigin, apiRouter);

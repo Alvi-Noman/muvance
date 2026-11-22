@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import type { WebmailMessage } from '@muvance/shared';
 import { attachmentUrl, errorMessage } from '@/lib/api';
-import { useFolders, useMessage, useMessageActions } from '@/lib/queries';
+import { useFolders, useMessage, useMessageActions, useTeamAvatars } from '@/lib/queries';
 import { frameDocument, sanitizeEmail } from '@/lib/sanitize';
 import { cn, displayName, fileSize, longDate, shortDate, textToHtml } from '@/lib/utils';
 import { useMail } from '@/pages/MailApp';
@@ -249,10 +249,16 @@ export function Reader() {
 
 function Sender({ message: m }: { message: WebmailMessage }) {
   const [details, setDetails] = useState(false);
+  const avatars = useTeamAvatars().data;
   const name = displayName(m.from);
   return (
     <div className="mt-5 flex items-start gap-3">
-      <Avatar name={name} seed={m.from?.address ?? name} className="size-10" />
+      <Avatar
+        name={name}
+        seed={m.from?.address ?? name}
+        src={m.from ? avatars?.[m.from.address] : null}
+        className="size-10"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="font-semibold">{name}</span>

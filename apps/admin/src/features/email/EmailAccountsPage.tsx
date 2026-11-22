@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, KeyRound, Mail, Pencil, Plus, Trash2, Wand2 } from 'lucide-react';
+import { Camera, Check, Copy, KeyRound, Mail, Pencil, Plus, Trash2, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MailAccountDto, MailAccountsDto } from '@muvance/shared';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,8 @@ import { Field, Input } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { Avatar, Badge, EmptyState, PageHeader, PageLoader } from '@/components/ui/misc';
 import { api, errorMessage } from '@/lib/api-client';
+import { squareAvatar } from '@/lib/avatar-image';
+import { cn } from '@/lib/cn';
 import { formatRelative } from '@/lib/format';
 
 const queryKey = ['mail-accounts'] as const;
@@ -123,7 +125,11 @@ export function EmailAccountsPage() {
         onCreated={(address, password) => setDialog({ kind: 'created', address, password })}
       />
       {dialog?.kind === 'edit' && (
-        <EditDialog account={dialog.account} onClose={() => setDialog(null)} />
+        <EditDialog
+          // The latest version, so a new picture shows straight away.
+          account={accounts.find((a) => a.id === dialog.account.id) ?? dialog.account}
+          onClose={() => setDialog(null)}
+        />
       )}
       {dialog?.kind === 'password' && (
         <PasswordDialog
@@ -168,7 +174,7 @@ function AccountRow({
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-5 py-4">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Avatar name={account.name} className="size-10" />
+        <AccountPicture account={account} className="size-10" />
         <div className="min-w-0">
           <p className="font-medium text-neutral-900">{account.name}</p>
           <p className="truncate text-sm text-neutral-600">{account.address}</p>
@@ -396,6 +402,16 @@ function EditDialog({ account, onClose }: { account: MailAccountDto; onClose: ()
 
   return (
     <Modal open onClose={onClose} title={account.address}>
+      <div className="mb-5 flex items-center gap-4">
+        <AccountPicture account={account} className="size-16" />
+        <div>
+          <p className="text-sm font-medium text-neutral-900">Profile picture</p>
+          <p className="text-xs text-neutral-500">
+            Shown next to their mail. They can change it too, in Muvance Mail's settings.
+          </p>
+          <PictureButtons account={account} />
+        </div>
+      </div>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -550,5 +566,91 @@ function ClientSettings({ settings }: { settings: MailAccountsDto['clientSetting
         </div>
       </dl>
     </Card>
+  );
+}
+
+/** Uploads or removes a mailbox's picture, refreshing the list. */
+function usePictureActions(account: MailAccountDto) {
+  const queryClient = useQueryClient();
+  const upload = useMutation({
+    mutationFn: async (file: File) =>
+      api.put<MailAccountDto>(`/mail-accounts/${account.id}/avatar`, {
+        image: await squareAvatar(file),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey });
+      toast.success('Picture updated');
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  const remove = useMutation({
+    mutationFn: () => api.delete(`/mail-accounts/${account.id}/avatar`),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey }),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  return { upload, remove, busy: upload.isPending || remove.isPending };
+}
+
+/** The person's picture (or initials). Clicking it picks a new picture. */
+function AccountPicture({ account, className }: { account: MailAccountDto; className?: string }) {
+  const { upload, busy } = usePictureActions(account);
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <button
+      type="button"
+      onClick={() => input.current?.click()}
+      className={cn('group relative shrink-0 overflow-hidden rounded-full', className)}
+      aria-label={`Change ${account.name}'s picture`}
+      title="Change picture"
+      disabled={busy}
+    >
+      {account.avatarUrl ? (
+        <img src={account.avatarUrl} alt="" className="size-full object-cover" />
+      ) : (
+        <Avatar name={account.name} className="size-full" />
+      )}
+      <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-white opacity-0 transition group-hover:opacity-100">
+        <Camera className="size-4" />
+      </span>
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) upload.mutate(file);
+          e.target.value = '';
+        }}
+      />
+    </button>
+  );
+}
+
+function PictureButtons({ account }: { account: MailAccountDto }) {
+  const { upload, remove, busy } = usePictureActions(account);
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div className="mt-2 flex gap-2">
+      <Button size="sm" variant="secondary" onClick={() => input.current?.click()} disabled={busy}>
+        <Camera className="size-3.5" aria-hidden /> {account.avatarUrl ? 'Change' : 'Upload'}
+      </Button>
+      {account.avatarUrl && (
+        <Button size="sm" variant="ghost" onClick={() => remove.mutate()} disabled={busy}>
+          Remove
+        </Button>
+      )}
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) upload.mutate(file);
+          e.target.value = '';
+        }}
+      />
+    </div>
   );
 }
