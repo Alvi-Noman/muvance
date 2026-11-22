@@ -20,7 +20,14 @@ export function createApp() {
 
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGIN.split(','), credentials: true }));
-  app.use(express.json({ limit: '100kb' }));
+  const json = express.json({ limit: '100kb' });
+  // Sending email and saving drafts carry attachments (base64), up to about 25 MB of files.
+  const bigJson = express.json({ limit: '40mb' });
+  app.use((req, res, next) =>
+    req.path === '/api/webmail/send' || req.path === '/api/webmail/drafts'
+      ? bigJson(req, res, next)
+      : json(req, res, next),
+  );
   app.use(cookieParser());
   if (!isTest) app.use(pinoHttp({ logger }));
   app.use('/api', apiLimiter, sameOrigin, apiRouter);

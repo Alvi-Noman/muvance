@@ -6,6 +6,8 @@ import type {
   ApplicationDoc,
   CallRecordingDoc,
   MailAccountDoc,
+  WebmailProfileDoc,
+  WebmailSessionDoc,
   BlockedTimeDoc,
   DeviceDoc,
   InviteDoc,
@@ -83,6 +85,8 @@ export const collections = {
   meetJoinRequests: () => getDb().collection<MeetJoinRequestDoc>('meetJoinRequests'),
   callRecordings: () => getDb().collection<CallRecordingDoc>('callRecordings'),
   mailAccounts: () => getDb().collection<MailAccountDoc>('mailAccounts'),
+  webmailSessions: () => getDb().collection<WebmailSessionDoc>('webmailSessions'),
+  webmailProfiles: () => getDb().collection<WebmailProfileDoc>('webmailProfiles'),
 };
 
 /** Brings data from earlier versions up to date. Safe to run on every start. */
@@ -206,6 +210,9 @@ async function ensureIndexes(database: Db) {
     database.collection('callRecordings').createIndex({ code: 1, status: 1 }),
     database.collection('mailAccounts').createIndex({ localPart: 1 }, { unique: true }),
     database.collection('mailAccounts').createIndex({ aliases: 1 }),
+    database.collection('webmailSessions').createIndex({ tokenHash: 1 }, { unique: true }),
+    database.collection('webmailSessions').createIndex({ address: 1 }),
+    database.collection('webmailSessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database
       .collection('meetJoinRequests')
       .createIndex({ createdAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 }),

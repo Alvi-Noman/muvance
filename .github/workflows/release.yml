@@ -42,6 +42,9 @@ jobs:
           - image: meet
             file: docker/spa.Dockerfile
             app: meet
+          - image: mail
+            file: docker/spa.Dockerfile
+            app: mail
     steps:
       - uses: actions/checkout@v4
         with:
@@ -103,9 +106,8 @@ jobs:
           test -n "$DEPLOY_PATH"
           # Variables are meant to expand here, on the runner, before being sent over SSH.
           # shellcheck disable=SC2029
-          ssh "$TARGET" "mkdir -p '$DEPLOY_PATH/runtime' '$DEPLOY_PATH/roundcube'"
+          ssh "$TARGET" "mkdir -p '$DEPLOY_PATH/runtime'"
           scp compose.production.yml Caddyfile deploy/deploy.sh deploy/livekit.yaml "$TARGET:$DEPLOY_PATH/"
-          scp deploy/roundcube/muvance.php "$TARGET:$DEPLOY_PATH/roundcube/"
 
       - name: Deploy (rolls back automatically if unhealthy)
         env:
@@ -124,7 +126,7 @@ jobs:
           SITE: ${{ vars.SITE_DOMAIN }}
           ADMIN: ${{ vars.ADMIN_DOMAIN }}
         run: |
-          for url in "https://$SITE/" "https://$SITE/api/health" "https://$ADMIN/" "https://$ADMIN/api/health" "https://meet.$SITE/" "https://meet.$SITE/api/health"; do
+          for url in "https://$SITE/" "https://$SITE/api/health" "https://$ADMIN/" "https://$ADMIN/api/health" "https://meet.$SITE/" "https://meet.$SITE/api/health" "https://mail.$SITE/"; do
             curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-all-errors -o /dev/null "$url"
             echo "OK $url"
           done

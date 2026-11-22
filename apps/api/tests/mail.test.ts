@@ -74,7 +74,7 @@ describe('team email accounts', () => {
     ).toBe(400);
   });
 
-  it('resets passwords, and lets people change their own from webmail', async () => {
+  it('resets passwords', async () => {
     const { agent } = await signedIn('admin');
     const created = await agent
       .post('/api/mail-accounts')
@@ -85,33 +85,6 @@ describe('team email accounts', () => {
     expect(
       verifySha512Crypt('second-password-2', (await accountsFile())['omar@muvance.com']!),
     ).toBe(true);
-
-    // Roundcube's password plugin posts a form and expects "ok".
-    const change = (fields: Record<string, string>) =>
-      request(app).post('/api/mail/password').type('form').send(fields);
-    expect(
-      (
-        await change({
-          user: 'omar@muvance.com',
-          curpass: 'wrong-password',
-          newpass: 'third-password-3',
-        })
-      ).status,
-    ).toBe(403);
-    expect(
-      (await change({ user: 'omar@muvance.com', curpass: 'second-password-2', newpass: 'short' }))
-        .status,
-    ).toBe(400);
-    const ok = await change({
-      user: 'omar@muvance.com',
-      curpass: 'second-password-2',
-      newpass: 'third-password-3',
-    });
-    expect(ok.status).toBe(200);
-    expect(ok.text).toBe('ok');
-    expect(verifySha512Crypt('third-password-3', (await accountsFile())['omar@muvance.com']!)).toBe(
-      true,
-    );
   });
 
   it('removes deleted mailboxes from the mail server', async () => {

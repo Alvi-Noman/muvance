@@ -67,6 +67,14 @@ services:
         APP: meet
     restart: unless-stopped
 
+  mailweb:
+    build:
+      context: .
+      dockerfile: docker/spa.Dockerfile
+      args:
+        APP: mail
+    restart: unless-stopped
+
   # Media server for meetings. Also used by `npm run dev` (the API's defaults match these keys).
   livekit:
     image: livekit/livekit-server:v1.13.11
@@ -98,7 +106,7 @@ services:
       ADMIN_ADDRESS: http://localhost:8181
       WWW_ADDRESS: http://localhost:8182
       MEET_ADDRESS: http://localhost:8183
-      # Team email runs only in production; locally this address just answers 502.
+      # Muvance Mail's app runs locally too; the mail server itself only in production.
       MAIL_ADDRESS: http://localhost:8184
       SITE_URL: http://localhost:8180
     ports:

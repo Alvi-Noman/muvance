@@ -13,7 +13,8 @@ import { leadsRouter } from '@/modules/leads/leads.routes';
 import { metaRouter } from '@/modules/meta/meta.routes';
 import { recordingsRouter, recordingUploadRouter } from '@/modules/recordings/recordings.routes';
 import { unfinishedRouter, unfinishedUploadRouter } from '@/modules/unfinished/unfinished.routes';
-import { mailAccountsRouter, mailPasswordRouter } from '@/modules/mail/mail.routes';
+import { mailAccountsRouter } from '@/modules/mail/mail.routes';
+import { webmailRouter } from '@/modules/webmail/webmail.routes';
 import { callRecordingsRouter } from '@/modules/meet/call-recordings.routes';
 import { meetRouter } from '@/modules/meet/meet.routes';
 import { meetingsRouter } from '@/modules/meetings/meetings.routes';
@@ -33,8 +34,8 @@ apiRouter.use('/booking-drafts', unfinishedUploadRouter);
 apiRouter.use('/applications', applicationUploadRouter);
 // Video meetings: public for guests with the link; each route checks sign-in where needed.
 apiRouter.use('/meet', meetRouter);
-// Webmail's change-password form (needs the current password).
-apiRouter.use('/mail/password', mailPasswordRouter);
+// Muvance Mail (mail.muvance.com). Its own sign-in, separate from the admin's.
+apiRouter.use('/webmail', webmailRouter);
 
 // Admin (signed-in users; each route also checks role permissions)
 apiRouter.use('/dashboard', requireAuth, dashboardRouter);

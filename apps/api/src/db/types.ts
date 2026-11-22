@@ -279,3 +279,21 @@ export interface MailAccountDoc {
   createdAt: Date;
   updatedAt: Date;
 }
+
+/** A Muvance Mail sign-in. The mail password is kept AES-256-GCM encrypted (WEBMAIL_SECRET). */
+export interface WebmailSessionDoc {
+  _id: ObjectId;
+  tokenHash: string;
+  address: string;
+  passwordEnc: string;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+/** A Muvance Mail user's settings and the people they write to (for address suggestions). */
+export interface WebmailProfileDoc {
+  _id: string; // the email address
+  displayName: string;
+  signature: string;
+  contacts: { name: string; address: string; lastUsed: Date; count: number }[];
+}

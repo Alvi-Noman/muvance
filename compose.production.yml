@@ -30,11 +30,6 @@ services:
       # Certificates. Kept between deploys, so Caddy doesn't ask for new ones every time.
       - caddy_data:/data
       - caddy_config:/config
-    networks:
-      default:
-      # A fixed address, so webmail can trust it as its proxy (deploy/roundcube/muvance.php).
-      webmail:
-        ipv4_address: 10.250.250.2
     depends_on:
       api:
         condition: service_healthy
@@ -43,6 +38,8 @@ services:
       admin:
         condition: service_healthy
       meet:
+        condition: service_healthy
+      mailweb:
         condition: service_healthy
     restart: unless-stopped
     logging: *logging
@@ -53,6 +50,8 @@ services:
       - ${API_ENV_FILE:-./runtime/api.env}
       # LiveKit's key and secret, created by deploy.sh the first time.
       - ./runtime/livekit.env
+      # Muvance Mail's session encryption key, also made by deploy.sh.
+      - ./runtime/webmail.env
     environment:
       NODE_ENV: production
       PORT: '4000'
@@ -90,6 +89,12 @@ services:
   # Video meetings (meet.<site domain>).
   meet:
     image: ${IMAGE_PREFIX}/muvance-meet:${IMAGE_TAG:-prod}
+    restart: unless-stopped
+    logging: *logging
+
+  # Muvance Mail, the webmail app (mail.<site domain>). Reads and sends through the API.
+  mailweb:
+    image: ${IMAGE_PREFIX}/muvance-mail:${IMAGE_TAG:-prod}
     restart: unless-stopped
     logging: *logging
 
@@ -151,7 +156,7 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # --- Team email. Only started once it's set up (deploy.sh adds the "mail" profile when
+  # --- Team email server. Only started once it's set up (deploy.sh adds the "mail" profile when
   # runtime/mail.env, the mail.<domain> certificate and at least one mailbox exist).
 
   # docker-mailserver: receives mail for @<domain>, stores it, and sends through the relay (Brevo).
@@ -206,46 +211,12 @@ services:
       - NET_ADMIN # fail2ban
     networks:
       default:
-        # Webmail reaches it by its public name, so the TLS certificate matches.
+        # The API reaches it by its public name, so the TLS certificate matches.
         aliases:
           - mail.${SITE_DOMAIN}
     stop_grace_period: 1m
     restart: unless-stopped
     logging: *logging
-
-  # Roundcube: the webmail at mail.<domain>.
-  webmail:
-    image: roundcube/roundcubemail:1.7.6-apache
-    profiles: [mail]
-    environment:
-      ROUNDCUBEMAIL_DEFAULT_HOST: ssl://mail.${SITE_DOMAIN}
-      ROUNDCUBEMAIL_DEFAULT_PORT: '993'
-      ROUNDCUBEMAIL_SMTP_SERVER: ssl://mail.${SITE_DOMAIN}
-      ROUNDCUBEMAIL_SMTP_PORT: '465'
-      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload,markasjunk,newmail_notifier,managesieve,password
-      ROUNDCUBEMAIL_SKIN: elastic
-      ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: 25M
-      ROUNDCUBEMAIL_DB_TYPE: sqlite
-    volumes:
-      - ./mail/webmail-db:/var/roundcube/db
-      - ./roundcube/muvance.php:/var/roundcube/config/muvance.php:ro
-      # Its secret key, made by deploy.sh.
-      - ./runtime/roundcube-secret.php:/var/roundcube/config/zz-secret.php:ro
-    networks:
-      default:
-      webmail:
-        ipv4_address: 10.250.250.3
-    depends_on:
-      - mailserver
-    restart: unless-stopped
-    logging: *logging
-
-networks:
-  # Caddy and webmail only, with fixed addresses (webmail trusts Caddy as its proxy).
-  webmail:
-    ipam:
-      config:
-        - subnet: 10.250.250.0/28
 
 volumes:
   caddy_data:

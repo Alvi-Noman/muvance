@@ -148,18 +148,20 @@ the call in a hidden Chrome and saves it as an MP4 in `/opt/muvance/call-recordi
 
 Mailboxes are created in the admin (**Email**, owners and admins). The API writes the mail server's
 accounts, aliases and quotas files into `/opt/muvance/mail/config`; docker-mailserver notices within
-seconds. People read mail at **mail.muvance.com** (Roundcube) or in any mail app (IMAP 993, SMTP 465).
+seconds. People read mail at **mail.muvance.com** (Muvance Mail, `apps/mail`) or in any mail app (IMAP 993, SMTP 465).
 
 | Container    | What it does                                                                      |
 | ------------ | --------------------------------------------------------------------------------- |
 | `mailserver` | docker-mailserver: receives mail (25), IMAP (993), sending (465/587), spam filter |
-| `webmail`    | Roundcube at mail.muvance.com, behind Caddy                                       |
+| `mailweb`    | Muvance Mail, the webmail app; reads and sends through the API (IMAP/SMTP)        |
 
 - **Sending** goes through Brevo's relay (`smtp-relay.brevo.com:587`): this server's port 25 can't
   send out, and Brevo's addresses are trusted by Gmail and Outlook. Its login lives in
   `/opt/muvance/runtime/mail.env` (`RELAY_USER=...`, `RELAY_PASSWORD=...`), only on the server.
 - **TLS** for IMAP/SMTP reuses Caddy's certificate for mail.muvance.com.
-- **Switch-on:** `deploy.sh` starts the two containers only when `runtime/mail.env` exists, Caddy has
+- **Webmail sessions** keep the person's mail password encrypted with `WEBMAIL_SECRET`
+  (`runtime/webmail.env`, made by `deploy.sh`), so the API can open their mailbox.
+- **Switch-on:** `deploy.sh` starts the mail server only when `runtime/mail.env` exists, Caddy has
   the mail.muvance.com certificate (needs its DNS record) and at least one mailbox exists. It prints
   why email is off otherwise. After those are in place, run `sh deploy.sh $(cat .deployed-tag)`.
 - **DKIM** (once, after the first start):

@@ -88,6 +88,12 @@ const envSchema = z.object({
   MAIL_DOMAIN: z.string().min(3).default('muvance.com'),
   MAIL_HOST: z.string().min(3).default('mail.muvance.com'),
   MAIL_CONFIG_DIR: z.string().min(1).default('./mail-config'),
+  /**
+   * Muvance Mail (the webmail): encrypts each signed-in person's mail password in their session,
+   * so the API can read and send their mail. deploy.sh creates it on the server.
+   */
+  WEBMAIL_SECRET: z.string().min(32).default('development-only-webmail-secret-0123456789'),
+  WEBMAIL_SESSION_DAYS: z.coerce.number().int().min(1).max(90).default(30),
 
   TRUST_PROXY: z
     .string()

@@ -73,12 +73,13 @@
 	}
 }
 
-# Team webmail (Roundcube). Only answers once mail is set up; until then Caddy still gets the
-# mail.<domain> certificate, which the mail server also uses for IMAP and SMTP.
+# Muvance Mail (team webmail). Caddy's certificate for this name is also used by the mail
+# server for IMAP and SMTP.
 {$MAIL_ADDRESS} {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
 		Referrer-Policy "same-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		X-Robots-Tag "noindex, nofollow"
@@ -88,6 +89,8 @@
 	request_body {
 		max_size 40MB
 	}
-	# Webmail's fixed address on the "webmail" network (see compose.production.yml).
-	reverse_proxy 10.250.250.3:80
+	import api
+	handle {
+		reverse_proxy mailweb:80
+	}
 }

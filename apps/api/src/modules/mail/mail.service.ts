@@ -12,6 +12,7 @@ import { collections, isDuplicateKeyError } from '@/db/client';
 import type { MailAccountDoc, UserDoc } from '@/db/types';
 import { logger } from '@/lib/logger';
 import { sha512Crypt, verifySha512Crypt } from '@/lib/sha512-crypt';
+import { webmailSessions } from '@/modules/webmail/session';
 import { HttpError } from '@/utils/http-error';
 
 /** Addresses every mail domain should have; they go to the first mailbox unless taken. */
@@ -150,8 +151,9 @@ export const mailService = {
     return this.get(id);
   },
 
+  /** Sets a new password and signs the person out of webmail everywhere. */
   async setPassword(id: ObjectId, password: string) {
-    await this.get(id);
+    const doc = await this.get(id);
     await collections
       .mailAccounts()
       .updateOne(
@@ -159,6 +161,7 @@ export const mailService = {
         { $set: { passwordHash: sha512Crypt(password), updatedAt: new Date() } },
       );
     await this.sync();
+    await webmailSessions.destroyAll(doc.address);
   },
 
   /**
@@ -166,9 +169,10 @@ export const mailService = {
    * The stored mail stays on the server's disk (only the mail server can delete it).
    */
   async remove(id: ObjectId) {
-    await this.get(id);
+    const doc = await this.get(id);
     await collections.mailAccounts().deleteOne({ _id: id });
     await this.sync();
+    await webmailSessions.destroyAll(doc.address);
   },
 
   /** Webmail's "change password": the person proves the current one first. */

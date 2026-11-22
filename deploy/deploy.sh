@@ -51,17 +51,15 @@ EGRESS
 chmod 644 runtime/egress.yaml
 mkdir -p call-recordings && chmod 777 call-recordings
 
-# Team email. The API (its own user) writes the accounts files into mail/config; webmail (www-data)
-# keeps its small database in mail/webmail-db.
-mkdir -p mail/data mail/state mail/logs mail/config mail/webmail-db roundcube
-chmod 777 mail/config mail/webmail-db
+# Team email. The API (its own user) writes the accounts files into mail/config.
+mkdir -p mail/data mail/state mail/logs mail/config
+chmod 777 mail/config
 # Never ban webmail or the API for failed sign-ins: they connect from Docker's private addresses.
 printf '[DEFAULT]\nignoreip = 127.0.0.1/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16\n' > mail/config/fail2ban-jail.cf
-# Webmail's secret key, made once and kept.
-if [ ! -f runtime/roundcube-secret.php ]; then
-  DES_KEY="$(head -c 18 /dev/urandom | base64 | tr -d '\n/+=' | cut -c1-24)"
-  printf "<?php\n\$config['des_key'] = '%s';\n" "$DES_KEY" > runtime/roundcube-secret.php
-  chmod 644 runtime/roundcube-secret.php
+# Muvance Mail: the key that encrypts signed-in people's mail passwords in their sessions.
+if [ ! -f runtime/webmail.env ]; then
+  (umask 077 && echo "WEBMAIL_SECRET=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' 
+')" > runtime/webmail.env)
 fi
 
 # Start email only once it's set up, so a deploy can never fail on it: the relay's login

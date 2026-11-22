@@ -1,0 +1,102 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-logo: 'Sora', 'Inter', ui-sans-serif, sans-serif;
+
+  /* A soft neutral canvas with white panels, like Muvance's website. */
+  --color-canvas: #f4f4f2;
+  --color-line: #e7e6e2;
+  --color-ink: #121212;
+  --color-muted: #6b6b68;
+  --color-accent: #2f5bff;
+  --color-accent-soft: #eef2ff;
+
+  --animate-fade-up: fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-slide-in: slide-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      translate: 0 8px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      translate: 0 24px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  ::selection {
+    background: rgb(47 91 255 / 0.18);
+  }
+}
+
+@layer components {
+  /* The message editor (TipTap). */
+  .editor .ProseMirror {
+    min-height: 220px;
+    outline: none;
+    font-size: 14.5px;
+    line-height: 1.65;
+  }
+  .editor .ProseMirror p {
+    margin: 0 0 0.6em;
+  }
+  .editor .ProseMirror ul {
+    list-style: disc;
+    padding-left: 1.4em;
+    margin: 0 0 0.6em;
+  }
+  .editor .ProseMirror ol {
+    list-style: decimal;
+    padding-left: 1.4em;
+    margin: 0 0 0.6em;
+  }
+  .editor .ProseMirror blockquote {
+    border-left: 3px solid var(--color-line);
+    padding-left: 0.9em;
+    color: var(--color-muted);
+    margin: 0.6em 0;
+  }
+  .editor .ProseMirror a {
+    color: var(--color-accent);
+    text-decoration: underline;
+  }
+  .editor .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    color: #a3a3a0;
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #d6d5d1 transparent;
+  }
+}
