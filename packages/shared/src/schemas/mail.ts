@@ -86,7 +86,10 @@ export interface MailAccountsDto {
 export const mailAddressSchema = z.object({
   localPart: mailLocalPartSchema,
   displayName: z.string().trim().min(1, 'Enter the name people will see').max(80),
-  ownerIds: z.array(z.string().regex(/^[0-9a-f]{24}$/)).min(1, 'Choose who uses this address').max(50),
+  ownerIds: z
+    .array(z.string().regex(/^[0-9a-f]{24}$/))
+    .min(1, 'Choose who uses this address')
+    .max(50),
 });
 export type MailAddressInput = z.infer<typeof mailAddressSchema>;
 
