@@ -3,12 +3,16 @@ import { env } from './config/env';
 import { closeDb, connectDb } from './db/client';
 import { seedDevOwner } from './db/seed-dev';
 import { logger } from './lib/logger';
+import { mailService } from './modules/mail/mail.service';
 import { callRecordingsService } from './modules/meet/call-recordings.service';
 import { recordingsService } from './modules/recordings/recordings.service';
 
 async function main() {
   await connectDb();
   if (env.MONGODB_URI === 'memory') await seedDevOwner();
+  await mailService
+    .sync()
+    .catch((error: unknown) => logger.warn({ err: error }, 'Could not write mail server accounts'));
   const server = createApp().listen(env.PORT, () => {
     logger.info(`API listening on http://localhost:${env.PORT}`);
   });

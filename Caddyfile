@@ -3,6 +3,11 @@
 #   local:      SITE_ADDRESS=http://localhost:8180  ADMIN_ADDRESS=http://localhost:8181 …
 # In production Caddy gets HTTPS certificates for these domains itself and redirects HTTP to HTTPS.
 
+{
+	# Always Let's Encrypt, so the mail server finds the mail.<domain> certificate at a fixed path.
+	cert_issuer acme
+}
+
 (security_headers) {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -66,4 +71,23 @@
 		encode zstd gzip
 		reverse_proxy meet:80
 	}
+}
+
+# Team webmail (Roundcube). Only answers once mail is set up; until then Caddy still gets the
+# mail.<domain> certificate, which the mail server also uses for IMAP and SMTP.
+{$MAIL_ADDRESS} {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+	encode zstd gzip
+	request_body {
+		max_size 40MB
+	}
+	# Webmail's fixed address on the "webmail" network (see compose.production.yml).
+	reverse_proxy 10.250.250.3:80
 }

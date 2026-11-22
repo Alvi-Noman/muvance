@@ -106,6 +106,17 @@ export const router = createBrowserRouter([
           })),
       },
       {
+        path: 'email',
+        lazy: () =>
+          import('@/features/email/EmailAccountsPage').then((m) => ({
+            Component: () => (
+              <RequirePermission permission="team:manage">
+                <m.EmailAccountsPage />
+              </RequirePermission>
+            ),
+          })),
+      },
+      {
         path: 'team',
         lazy: () =>
           import('@/features/team/TeamPage').then((m) => ({

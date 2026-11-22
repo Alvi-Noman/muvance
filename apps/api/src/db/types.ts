@@ -262,3 +262,20 @@ export interface CallRecordingDoc {
   /** Why it stopped on its own, e.g. inactivity or the length limit. */
   stopReason?: string | null;
 }
+
+/** A team mailbox, <localPart>@MAIL_DOMAIN. The source of truth for the mail server's files. */
+export interface MailAccountDoc {
+  _id: ObjectId;
+  localPart: string;
+  address: string;
+  name: string;
+  /** SHA512-CRYPT ("$6$..."), the scheme the mail server reads. */
+  passwordHash: string;
+  quotaGb: number;
+  /** Extra local parts that deliver here, e.g. "sales". */
+  aliases: string[];
+  createdBy: ObjectId;
+  createdByName: string;
+  createdAt: Date;
+  updatedAt: Date;
+}

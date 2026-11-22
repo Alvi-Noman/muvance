@@ -144,6 +144,34 @@ the call in a hidden Chrome and saves it as an MP4 in `/opt/muvance/call-recordi
 - `deploy.sh` writes the recorder's settings (`runtime/egress.yaml`) from `runtime/livekit.env`.
 - Back up `/opt/muvance/call-recordings` if the recordings matter; they're only on this server.
 
+## Team email (mail.muvance.com)
+
+Mailboxes are created in the admin (**Email**, owners and admins). The API writes the mail server's
+accounts, aliases and quotas files into `/opt/muvance/mail/config`; docker-mailserver notices within
+seconds. People read mail at **mail.muvance.com** (Roundcube) or in any mail app (IMAP 993, SMTP 465).
+
+| Container    | What it does                                                                      |
+| ------------ | --------------------------------------------------------------------------------- |
+| `mailserver` | docker-mailserver: receives mail (25), IMAP (993), sending (465/587), spam filter |
+| `webmail`    | Roundcube at mail.muvance.com, behind Caddy                                       |
+
+- **Sending** goes through Brevo's relay (`smtp-relay.brevo.com:587`): this server's port 25 can't
+  send out, and Brevo's addresses are trusted by Gmail and Outlook. Its login lives in
+  `/opt/muvance/runtime/mail.env` (`RELAY_USER=...`, `RELAY_PASSWORD=...`), only on the server.
+- **TLS** for IMAP/SMTP reuses Caddy's certificate for mail.muvance.com.
+- **Switch-on:** `deploy.sh` starts the two containers only when `runtime/mail.env` exists, Caddy has
+  the mail.muvance.com certificate (needs its DNS record) and at least one mailbox exists. It prints
+  why email is off otherwise. After those are in place, run `sh deploy.sh $(cat .deployed-tag)`.
+- **DKIM** (once, after the first start):
+  `docker compose --env-file .env.production -f compose.production.yml exec mailserver setup config dkim domain muvance.com`,
+  then publish the TXT record it prints (`mail._domainkey`).
+- **DNS:** A `mail` → server IP; MX `@` → `mail.muvance.com` (10); SPF
+  `v=spf1 mx include:spf.brevo.com ~all`; DKIM `mail._domainkey`; DMARC
+  `_dmarc` → `v=DMARC1; p=quarantine; rua=mailto:dmarc@muvance.com`; reverse DNS (in Contabo) of the
+  server IP → `mail.muvance.com`.
+- **Deleting a mailbox** stops it receiving and signing in; its stored mail stays in `mail/data`.
+- Back up `/opt/muvance/mail` (mail and settings) if the mail matters.
+
 ## Moving from the shared Qravy server
 
 Muvance used to run on Qravy's VPS behind Qravy's Caddy. To move it without downtime:

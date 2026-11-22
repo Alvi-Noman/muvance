@@ -51,6 +51,34 @@ EGRESS
 chmod 644 runtime/egress.yaml
 mkdir -p call-recordings && chmod 777 call-recordings
 
+# Team email. The API (its own user) writes the accounts files into mail/config; webmail (www-data)
+# keeps its small database in mail/webmail-db.
+mkdir -p mail/data mail/state mail/logs mail/config mail/webmail-db roundcube
+chmod 777 mail/config mail/webmail-db
+# Never ban webmail or the API for failed sign-ins: they connect from Docker's private addresses.
+printf '[DEFAULT]\nignoreip = 127.0.0.1/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16\n' > mail/config/fail2ban-jail.cf
+# Webmail's secret key, made once and kept.
+if [ ! -f runtime/roundcube-secret.php ]; then
+  DES_KEY="$(head -c 18 /dev/urandom | base64 | tr -d '\n/+=' | cut -c1-24)"
+  printf "<?php\n\$config['des_key'] = '%s';\n" "$DES_KEY" > runtime/roundcube-secret.php
+  chmod 644 runtime/roundcube-secret.php
+fi
+
+# Start email only once it's set up, so a deploy can never fail on it: the relay's login
+# (runtime/mail.env), Caddy's certificate for mail.<domain> (needs the DNS record), and a mailbox.
+SITE_DOMAIN="$(sed -n 's/^SITE_DOMAIN=//p' .env.production)"
+MAIL_CERT="/data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/mail.$SITE_DOMAIN/mail.$SITE_DOMAIN.crt"
+if [ ! -f runtime/mail.env ]; then
+  echo "Email: not started (runtime/mail.env with RELAY_USER and RELAY_PASSWORD is missing)"
+elif ! $COMPOSE exec -T caddy test -f "$MAIL_CERT" 2> /dev/null; then
+  echo "Email: not started (no certificate for mail.$SITE_DOMAIN yet; check its DNS record)"
+elif [ ! -s mail/config/postfix-accounts.cf ]; then
+  echo "Email: not started (create a mailbox in the admin first)"
+else
+  COMPOSE="$COMPOSE --profile mail"
+  echo "Email: on"
+fi
+
 IMAGE_TAG="$TAG" $COMPOSE pull
 
 if IMAGE_TAG="$TAG" $COMPOSE up -d --remove-orphans --wait --wait-timeout 180; then

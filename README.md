@@ -7,7 +7,7 @@ Marketing website, call booking and a CRM for the Muvance agency, in one TypeScr
 | `apps/web`        | http://localhost:5173 | Public landing page + `/book` call booking + `/thank-you`         |
 | `apps/admin`      | http://localhost:5174 | CRM: leads, pipeline, meetings, team & roles, booking settings    |
 | `apps/meet`       | http://localhost:5175 | Video meetings (meet.muvance.com): up to 5 people, no time limit  |
-| `apps/api`        | http://localhost:4000 | Express API: bookings, auth, CRM (MongoDB)                        |
+| `apps/api`        | http://localhost:4000 | Express API: bookings, auth, CRM (MongoDB), mailboxes             |
 | `packages/shared` | –                     | Zod schemas, roles/permissions and types shared by all three apps |
 
 ## Tech stack

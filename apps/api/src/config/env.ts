@@ -81,6 +81,14 @@ const envSchema = z.object({
    */
   CALL_RECORDINGS_IDLE_MINUTES: z.coerce.number().int().min(1).max(600).default(10),
 
+  /**
+   * Team email (docker-mailserver). The API writes its accounts, aliases and quotas files into
+   * MAIL_CONFIG_DIR (the mail server's config folder); it notices changes within seconds.
+   */
+  MAIL_DOMAIN: z.string().min(3).default('muvance.com'),
+  MAIL_HOST: z.string().min(3).default('mail.muvance.com'),
+  MAIL_CONFIG_DIR: z.string().min(1).default('./mail-config'),
+
   TRUST_PROXY: z
     .string()
     .default('false')

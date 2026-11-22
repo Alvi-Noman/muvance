@@ -19,6 +19,7 @@ services:
       ADMIN_ADDRESS: ${ADMIN_DOMAIN:?Set ADMIN_DOMAIN in .env.production}
       WWW_ADDRESS: www.${SITE_DOMAIN}
       MEET_ADDRESS: meet.${SITE_DOMAIN}
+      MAIL_ADDRESS: mail.${SITE_DOMAIN}
       SITE_URL: https://${SITE_DOMAIN}
     ports:
       - '80:80'
@@ -29,6 +30,11 @@ services:
       # Certificates. Kept between deploys, so Caddy doesn't ask for new ones every time.
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      default:
+      # A fixed address, so webmail can trust it as its proxy (deploy/roundcube/muvance.php).
+      webmail:
+        ipv4_address: 10.250.250.2
     depends_on:
       api:
         condition: service_healthy
@@ -61,8 +67,13 @@ services:
       CALL_RECORDINGS_DIR: /recordings
       EGRESS_OUTPUT_DIR: /out
       CORS_ORIGIN: https://${SITE_DOMAIN},https://${ADMIN_DOMAIN},https://meet.${SITE_DOMAIN}
+      # Team email: the API writes the mail server's accounts files here.
+      MAIL_DOMAIN: ${SITE_DOMAIN}
+      MAIL_HOST: mail.${SITE_DOMAIN}
+      MAIL_CONFIG_DIR: /mail-config
     volumes:
       - ./call-recordings:/recordings
+      - ./mail/config:/mail-config
     restart: unless-stopped
     logging: *logging
 
@@ -139,6 +150,102 @@ services:
       - redis
     restart: unless-stopped
     logging: *logging
+
+  # --- Team email. Only started once it's set up (deploy.sh adds the "mail" profile when
+  # runtime/mail.env, the mail.<domain> certificate and at least one mailbox exist).
+
+  # docker-mailserver: receives mail for @<domain>, stores it, and sends through the relay (Brevo).
+  mailserver:
+    image: mailserver/docker-mailserver:16.0.1
+    profiles: [mail]
+    hostname: mail.${SITE_DOMAIN}
+    env_file:
+      # RELAY_USER and RELAY_PASSWORD for the outgoing relay. Kept only on the server.
+      - ./runtime/mail.env
+    environment:
+      DEFAULT_RELAY_HOST: '[smtp-relay.brevo.com]:587'
+      POSTMASTER_ADDRESS: postmaster@${SITE_DOMAIN}
+      SSL_TYPE: manual
+      # Caddy's certificate for mail.<domain> (it renews it; the mail server notices).
+      SSL_CERT_PATH: /caddy-data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/mail.${SITE_DOMAIN}/mail.${SITE_DOMAIN}.crt
+      SSL_KEY_PATH: /caddy-data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/mail.${SITE_DOMAIN}/mail.${SITE_DOMAIN}.key
+      ENABLE_RSPAMD: '1'
+      RSPAMD_LEARN: '1'
+      RSPAMD_GREYLISTING: '0'
+      MOVE_SPAM_TO_JUNK: '1'
+      ENABLE_OPENDKIM: '0'
+      ENABLE_OPENDMARC: '0'
+      ENABLE_POLICYD_SPF: '0'
+      ENABLE_AMAVIS: '0'
+      ENABLE_SPAMASSASSIN: '0'
+      ENABLE_CLAMAV: '0'
+      ENABLE_POSTGREY: '0'
+      ENABLE_FAIL2BAN: '1'
+      ENABLE_MANAGESIEVE: '1'
+      ENABLE_QUOTAS: '1'
+      ENABLE_POP3: '0'
+      ENABLE_UPDATE_CHECK: '0'
+      SPOOF_PROTECTION: '1'
+      PERMIT_DOCKER: none
+      ONE_DIR: '1'
+      POSTFIX_MESSAGE_SIZE_LIMIT: '31457280'
+      TZ: Asia/Dhaka
+    ports:
+      - '25:25' # receiving mail from other servers
+      - '465:465' # sending from mail apps (SSL/TLS)
+      - '587:587' # sending from mail apps (STARTTLS)
+      - '993:993' # reading mail in mail apps (IMAP, SSL/TLS)
+    volumes:
+      - ./mail/data:/var/mail
+      - ./mail/state:/var/mail-state
+      - ./mail/logs:/var/log/mail
+      - ./mail/config:/tmp/docker-mailserver
+      - caddy_data:/caddy-data:ro
+      - /etc/localtime:/etc/localtime:ro
+    cap_add:
+      - NET_ADMIN # fail2ban
+    networks:
+      default:
+        # Webmail reaches it by its public name, so the TLS certificate matches.
+        aliases:
+          - mail.${SITE_DOMAIN}
+    stop_grace_period: 1m
+    restart: unless-stopped
+    logging: *logging
+
+  # Roundcube: the webmail at mail.<domain>.
+  webmail:
+    image: roundcube/roundcubemail:1.7.6-apache
+    profiles: [mail]
+    environment:
+      ROUNDCUBEMAIL_DEFAULT_HOST: ssl://mail.${SITE_DOMAIN}
+      ROUNDCUBEMAIL_DEFAULT_PORT: '993'
+      ROUNDCUBEMAIL_SMTP_SERVER: ssl://mail.${SITE_DOMAIN}
+      ROUNDCUBEMAIL_SMTP_PORT: '465'
+      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload,markasjunk,newmail_notifier,managesieve,password
+      ROUNDCUBEMAIL_SKIN: elastic
+      ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: 25M
+      ROUNDCUBEMAIL_DB_TYPE: sqlite
+    volumes:
+      - ./mail/webmail-db:/var/roundcube/db
+      - ./roundcube/muvance.php:/var/roundcube/config/muvance.php:ro
+      # Its secret key, made by deploy.sh.
+      - ./runtime/roundcube-secret.php:/var/roundcube/config/zz-secret.php:ro
+    networks:
+      default:
+      webmail:
+        ipv4_address: 10.250.250.3
+    depends_on:
+      - mailserver
+    restart: unless-stopped
+    logging: *logging
+
+networks:
+  # Caddy and webmail only, with fixed addresses (webmail trusts Caddy as its proxy).
+  webmail:
+    ipam:
+      config:
+        - subnet: 10.250.250.0/28
 
 volumes:
   caddy_data:

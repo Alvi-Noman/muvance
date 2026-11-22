@@ -103,8 +103,9 @@ jobs:
           test -n "$DEPLOY_PATH"
           # Variables are meant to expand here, on the runner, before being sent over SSH.
           # shellcheck disable=SC2029
-          ssh "$TARGET" "mkdir -p '$DEPLOY_PATH/runtime'"
+          ssh "$TARGET" "mkdir -p '$DEPLOY_PATH/runtime' '$DEPLOY_PATH/roundcube'"
           scp compose.production.yml Caddyfile deploy/deploy.sh deploy/livekit.yaml "$TARGET:$DEPLOY_PATH/"
+          scp deploy/roundcube/muvance.php "$TARGET:$DEPLOY_PATH/roundcube/"
 
       - name: Deploy (rolls back automatically if unhealthy)
         env:

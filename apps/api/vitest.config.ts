@@ -7,7 +7,15 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    env: { NODE_ENV: 'test', LOG_LEVEL: 'silent', ADMIN_URL: 'http://admin.test' },
+    env: {
+      NODE_ENV: 'test',
+      LOG_LEVEL: 'silent',
+      ADMIN_URL: 'http://admin.test',
+      // Where the mail tests write the mail server's account files.
+      MAIL_CONFIG_DIR: fileURLToPath(
+        new URL('./node_modules/.cache/test-mail-config', import.meta.url),
+      ),
+    },
     // Starts one MongoDB for the run (or uses TEST_MONGODB_URI, e.g. a CI service container).
     globalSetup: ['./tests/setup/global.ts'],
     // Points each test file at its own empty database.
