@@ -13,6 +13,7 @@ import {
   type LocalVideoTrack,
   type Participant,
   type RemoteParticipant,
+  type RemoteTrackPublication,
   Room,
   RoomEvent,
   ScreenSharePresets,
@@ -21,10 +22,11 @@ import {
   VideoPresets,
 } from 'livekit-client';
 import { WifiOff } from 'lucide-react';
-import type { MeetParticipantRole } from '@muvance/shared';
+import { screenOwnerOf, type MeetParticipantRole, type MeetScreenTokenDto } from '@muvance/shared';
 import { Button, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { applyBlur } from '@/lib/blur';
+import { nativeErrorCode, nativeScreen } from '@/lib/native-screen';
 import type { MeetPrefs } from '@/lib/prefs';
 import { sounds } from '@/lib/sounds';
 import {
@@ -51,6 +53,11 @@ import { useRecording } from './use-recording';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+/** The server address is this same site: Caddy (or Vite in development) passes /rtc to LiveKit. */
+function liveKitUrl() {
+  return `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
+}
 
 function leaveReason(reason: DisconnectReason | undefined): LeaveReason {
   switch (reason) {
@@ -121,9 +128,7 @@ export function Call({
     };
     r.on(RoomEvent.Disconnected, onDisconnected);
 
-    // The server address is this same site: Caddy (or Vite in development) passes /rtc to LiveKit.
-    const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
-    r.connect(url, token)
+    r.connect(liveKitUrl(), token)
       .then(async () => {
         if (!active) return;
         setRoom(r);
@@ -188,7 +193,7 @@ export function Call({
 
   return (
     <RoomContext.Provider value={room}>
-      <CallScreen code={code} role={role} prefs={prefs} updatePrefs={updatePrefs} />
+      <CallScreen code={code} token={token} role={role} prefs={prefs} updatePrefs={updatePrefs} />
       <RoomAudioRenderer />
     </RoomContext.Provider>
   );
@@ -198,11 +203,13 @@ let nextId = 1;
 
 function CallScreen({
   code,
+  token,
   role,
   prefs,
   updatePrefs,
 }: {
   code: string;
+  token: string;
   role: MeetParticipantRole;
   prefs: MeetPrefs;
   updatePrefs: (patch: Partial<MeetPrefs>) => void;
@@ -262,10 +269,13 @@ function CallScreen({
   // People joining and leaving, raised hands, host mutes, reactions.
   useEffect(() => {
     const onJoin = (p: RemoteParticipant) => {
+      if (screenOwnerOf(p.metadata)) return;
       sounds.join();
       toast(`${p.name || 'Someone'} joined`);
     };
-    const onLeave = (p: RemoteParticipant) => toast(`${p.name || 'Someone'} left`);
+    const onLeave = (p: RemoteParticipant) => {
+      if (!screenOwnerOf(p.metadata)) toast(`${p.name || 'Someone'} left`);
+    };
     const onAttributes = (changed: Record<string, string>, p: Participant) => {
       if (!('hand' in changed)) return;
       if (changed.hand && p !== room.localParticipant) {
@@ -353,6 +363,55 @@ function CallScreen({
   const [confirmRecordingOpen, setConfirmRecordingOpen] = useState(false);
   const [stripHidden, setStripHidden] = useState<boolean | null>(null);
 
+  // In the Android app: presenting the phone's screen, which joins the call on its own.
+  const [phonePresenting, setPhonePresenting] = useState(false);
+  useEffect(() => {
+    if (!nativeScreen) return;
+    const handle = nativeScreen.addListener('stopped', () => setPhonePresenting(false));
+    return () => {
+      void handle.then((h) => h.remove());
+      void nativeScreen?.stop();
+    };
+  }, []);
+
+  const togglePhoneScreen = useCallback(async () => {
+    if (!nativeScreen) return;
+    if (phonePresenting) {
+      setPhonePresenting(false);
+      await nativeScreen.stop();
+      return;
+    }
+    try {
+      const screen = await api.post<MeetScreenTokenDto>(`/meet/rooms/${code}/screen-token`, {
+        token,
+      });
+      await nativeScreen.start({ url: liveKitUrl(), token: screen.token });
+      setPhonePresenting(true);
+    } catch (error) {
+      const reason = nativeErrorCode(error);
+      if (reason === 'CANCELLED') return;
+      toast(
+        reason === 'MICROPHONE_DENIED'
+          ? 'To present, allow Muvance Meet to use the microphone in your phone’s settings.'
+          : "Couldn't present your screen.",
+      );
+    }
+  }, [phonePresenting, code, token, toast]);
+
+  // Your own phone presentation would only show your screen back to you: don't download it.
+  useEffect(() => {
+    const skipOwn = (pub: RemoteTrackPublication, p: RemoteParticipant) => {
+      if (screenOwnerOf(p.metadata) === room.localParticipant.identity) pub.setSubscribed(false);
+    };
+    for (const p of room.remoteParticipants.values()) {
+      for (const pub of p.trackPublications.values()) skipOwn(pub, p);
+    }
+    room.on(RoomEvent.TrackPublished, skipOwn);
+    return () => {
+      room.off(RoomEvent.TrackPublished, skipOwn);
+    };
+  }, [room]);
+
   const endForAll = useCallback(async () => {
     try {
       await api.post(`/meet/rooms/${code}/end`);
@@ -387,6 +446,7 @@ function CallScreen({
       setConfirmRecordingOpen,
       stripHidden,
       setStripHidden,
+      phoneScreen: nativeScreen ? { active: phonePresenting, toggle: togglePhoneScreen } : null,
     }),
     [
       code,
@@ -408,6 +468,8 @@ function CallScreen({
       recording,
       confirmRecordingOpen,
       stripHidden,
+      phonePresenting,
+      togglePhoneScreen,
     ],
   );
 

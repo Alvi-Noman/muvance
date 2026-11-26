@@ -34,6 +34,28 @@ export const meetMuteSchema = z.object({
 export type MeetParticipantRole = 'host' | 'guest';
 export interface MeetParticipantMetadata {
   role: MeetParticipantRole;
+  /**
+   * Set on a phone's screen presentation, which joins the call separately from the person: the
+   * identity of the person it belongs to. It isn't a person, so it's left out of people and counts.
+   */
+  screenOf?: string;
+}
+
+/** Who a participant's screen presentation belongs to, from their metadata; null for people. */
+export function screenOwnerOf(metadata: string | undefined | null): string | null {
+  try {
+    const owner = (JSON.parse(metadata || '{}') as MeetParticipantMetadata).screenOf;
+    return typeof owner === 'string' && owner ? owner : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The app asks for a token for presenting its screen with the token it joined the call with. */
+export const meetScreenTokenSchema = z.object({ token: z.string().min(1).max(4096) });
+
+export interface MeetScreenTokenDto {
+  token: string;
 }
 
 export interface MeetRoomDto {

@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@capacitor/core": "^8.6.0",
     "@livekit/components-react": "2.9.25",
     "@livekit/track-processors": "0.8.3",
     "@muvance/shared": "^0.0.0",

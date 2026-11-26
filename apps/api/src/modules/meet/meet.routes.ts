@@ -8,11 +8,14 @@ import {
   meetCodeSchema,
   meetDecisionSchema,
   meetMuteSchema,
+  meetScreenTokenSchema,
+  screenOwnerOf,
   updateMeetRoomSchema,
   type MeetJoinRequestDto,
   type MeetJoinResultDto,
   type MeetRoomDto,
   type MeetRoomInfoDto,
+  type MeetScreenTokenDto,
 } from '@muvance/shared';
 import { rateLimit } from 'express-rate-limit';
 import { isTest } from '@/config/env';
@@ -314,6 +317,30 @@ meetRouter.post(
       await livekit.mute(code, identity, track.sid);
     }
     res.status(204).end();
+  },
+);
+
+/**
+ * The Android app presents the phone's screen as its own participant, because the call runs in a
+ * web page and Android's browsers can't capture the screen. Only someone in the call can ask, with
+ * the token they joined with.
+ */
+meetRouter.post(
+  '/rooms/:code/screen-token',
+  joinLimiter,
+  validateBody(meetScreenTokenSchema),
+  async (req, res) => {
+    const code = codeParam(req);
+    const caller = await livekit.verify((req.body as { token: string }).token);
+    if (!caller || caller.room !== code || screenOwnerOf(caller.metadata)) {
+      throw HttpError.forbidden('Join the call first.');
+    }
+    const person = (await livekit.participants(code)).find((p) => p.identity === caller.identity);
+    if (!person) throw HttpError.forbidden('Join the call first.');
+    const result: MeetScreenTokenDto = {
+      token: await livekit.screenToken(code, caller.identity, person.name),
+    };
+    res.json(result);
   },
 );
 

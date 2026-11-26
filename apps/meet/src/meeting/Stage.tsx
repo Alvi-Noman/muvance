@@ -1,14 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   isTrackReference,
+  useLocalParticipant,
   useTracks,
   type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 import { RoomEvent, Track } from 'livekit-client';
+import { screenOwnerOf } from '@muvance/shared';
 import { Maximize, Minimize, PanelBottomClose, PanelBottomOpen } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { enterFullscreen, exitFullscreen } from '@/lib/fullscreen';
-import { trackKey, useCall } from './call-context';
+import { isMine, trackKey, useCall } from './call-context';
 import { Tile } from './Tile';
 
 const GAP = 8;
@@ -72,6 +74,7 @@ function keyOf(ref: TrackReferenceOrPlaceholder) {
 
 export function Stage() {
   const { prefs, pinned, stripHidden, setStripHidden } = useCall();
+  const { localParticipant } = useLocalParticipant();
   const { ref, width, height } = useSize();
   const focusRef = useRef<HTMLDivElement>(null);
   const phoneSideways = usePhoneSideways();
@@ -98,9 +101,10 @@ export function Stage() {
     },
   );
 
-  // Cameras: others first in the order they joined, you last (as Meet does).
+  // Cameras: others first in the order they joined, you last (as Meet does). A screen presented
+  // from the Android app is a participant with no camera, not a person: it gets no tile.
   const cameras = tracks
-    .filter((t) => t.source === Track.Source.Camera)
+    .filter((t) => t.source === Track.Source.Camera && !screenOwnerOf(t.participant.metadata))
     .sort((a, b) => {
       if (a.participant.isLocal !== b.participant.isLocal) return a.participant.isLocal ? 1 : -1;
       return (a.participant.joinedAt?.getTime() ?? 0) - (b.participant.joinedAt?.getTime() ?? 0);
@@ -116,7 +120,7 @@ export function Stage() {
   const all = [...screens, ...cameras];
   const focus =
     (pinned && all.find((t) => keyOf(t) === pinned)) ||
-    screens.find((t) => !t.participant.isLocal) ||
+    screens.find((t) => !isMine(t.participant, localParticipant.identity)) ||
     screens[0] ||
     null;
 

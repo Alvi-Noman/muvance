@@ -4,6 +4,7 @@ import {
   useConnectionQualityIndicator,
   useIsMuted,
   useIsSpeaking,
+  useLocalParticipant,
   useParticipantAttribute,
   VideoTrack,
   type TrackReferenceOrPlaceholder,
@@ -24,7 +25,7 @@ import { Avatar } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { enterFullscreen } from '@/lib/fullscreen';
-import { roleOf, trackKey, useCall } from './call-context';
+import { isMine, roleOf, trackKey, useCall } from './call-context';
 
 export function Tile({
   trackRef,
@@ -39,7 +40,8 @@ export function Tile({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { prefs, pinned, setPinned, isHost, code, toast } = useCall();
+  const { prefs, pinned, setPinned, isHost, code, toast, phoneScreen } = useCall();
+  const { localParticipant } = useLocalParticipant();
   const participant = trackRef.participant;
   const isScreen = trackRef.source === Track.Source.ScreenShare;
   const isLocal = participant.isLocal;
@@ -80,7 +82,7 @@ export function Tile({
   };
 
   // Your own presentation isn't shown back to you (it would repeat itself endlessly).
-  if (isScreen && isLocal) {
+  if (isScreen && isMine(participant, localParticipant.identity)) {
     return (
       <div
         className={cn(
@@ -96,6 +98,7 @@ export function Tile({
           onClick={() => {
             if (participant instanceof LocalParticipant)
               void participant.setScreenShareEnabled(false);
+            else if (phoneScreen?.active) void phoneScreen.toggle();
           }}
           className={cn(
             'rounded-full bg-sky-200 font-medium text-neutral-950 hover:bg-sky-100',

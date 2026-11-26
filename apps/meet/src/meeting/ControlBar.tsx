@@ -1,9 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
-import {
-  useLocalParticipant,
-  useParticipantAttribute,
-  useParticipants,
-} from '@livekit/components-react';
+import { useLocalParticipant, useParticipantAttribute } from '@livekit/components-react';
 import {
   ChevronUp,
   CircleDot,
@@ -28,8 +24,10 @@ import { MEET_MAX_PARTICIPANTS } from '@muvance/shared';
 import { applyBlur } from '@/lib/blur';
 import { cn } from '@/lib/cn';
 import { isMissingDevice, mediaErrorMessage } from '@/lib/media-errors';
+import { APP_DOWNLOAD_URL, isAndroidBrowser } from '@/lib/native-screen';
 import { useCall, type Panel } from './call-context';
 import { MenuButton } from './Tile';
+import { usePeople } from './use-people';
 
 const REACTIONS = ['💖', '👍', '🎉', '👏', '😂', '😮', '😢', '🤔', '👎'];
 
@@ -65,7 +63,7 @@ export function ControlBar() {
     call;
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled } =
     useLocalParticipant();
-  const participants = useParticipants();
+  const participants = usePeople();
   const hand = useParticipantAttribute('hand', { participant: localParticipant });
   const clock = useClock();
 
@@ -154,6 +152,26 @@ export function ControlBar() {
     } finally {
       setBusy(null);
     }
+  };
+
+  const presenting = call.phoneScreen ? call.phoneScreen.active : isScreenShareEnabled;
+
+  const togglePhoneScreen = async () => {
+    if (busy || !call.phoneScreen) return;
+    setBusy('screen');
+    try {
+      await call.phoneScreen.toggle();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Phone browsers can't capture the screen; the Android app can.
+  const suggestApp = () => {
+    call.toast('To present your screen from a phone, use the Muvance Meet app.', {
+      label: 'Get the app',
+      run: () => window.open(APP_DOWNLOAD_URL, '_blank'),
+    });
   };
 
   const toggleHand = () => {
@@ -253,11 +271,13 @@ export function ControlBar() {
           )}
         </div>
 
-        {canShareScreen && (
+        {(canShareScreen || call.phoneScreen || isAndroidBrowser) && (
           <CircleButton
-            onClick={toggleScreen}
-            active={isScreenShareEnabled}
-            label={isScreenShareEnabled ? 'Stop presenting' : 'Present your screen'}
+            onClick={
+              call.phoneScreen ? togglePhoneScreen : canShareScreen ? toggleScreen : suggestApp
+            }
+            active={presenting}
+            label={presenting ? 'Stop presenting' : 'Present your screen'}
           >
             <MonitorUp />
           </CircleButton>

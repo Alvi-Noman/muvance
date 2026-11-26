@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
-import type { MeetParticipantRole } from '@muvance/shared';
+import type { Participant } from 'livekit-client';
+import { screenOwnerOf, type MeetParticipantRole } from '@muvance/shared';
 import type { MeetPrefs } from '@/lib/prefs';
 import type { useRecording } from './use-recording';
 
@@ -53,6 +54,8 @@ export interface CallState {
   /** Whether the row of other people under a presentation is hidden; null = automatic. */
   stripHidden: boolean | null;
   setStripHidden: (hidden: boolean | null) => void;
+  /** Presenting the phone's screen, in the Android app only. */
+  phoneScreen: { active: boolean; toggle: () => Promise<void> } | null;
 }
 
 export const CallContext = createContext<CallState | null>(null);
@@ -61,6 +64,11 @@ export function useCall() {
   const state = useContext(CallContext);
   if (!state) throw new Error('useCall must be used inside a call');
   return state;
+}
+
+/** You, or a screen you're presenting from the Android app (which joins as its own participant). */
+export function isMine(participant: Participant, localIdentity: string) {
+  return participant.isLocal || screenOwnerOf(participant.metadata) === localIdentity;
 }
 
 export function trackKey(identity: string, source: string) {

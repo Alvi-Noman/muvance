@@ -3,3 +3,4 @@ coverage
 .turbo
 package-lock.json
 apps/mobile/android
+apps/meet-app/android

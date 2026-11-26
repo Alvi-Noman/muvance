@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useIsMuted, useParticipantAttribute, useParticipants } from '@livekit/components-react';
+import { useIsMuted, useParticipantAttribute } from '@livekit/components-react';
 import { Track, type Participant } from 'livekit-client';
 import { Check, Hand, Link2, Mic, MicOff, UserMinus } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,11 +11,12 @@ import { meetingLink } from '@/lib/meeting-code';
 import { useCopy } from '@/lib/use-copy';
 import { roleOf, useCall } from '../call-context';
 import { WaitingList } from '../JoinRequests';
+import { usePeople } from '../use-people';
 import { PanelShell } from './PanelShell';
 
 export function PeoplePanel() {
   const { code, isHost, toast, signal } = useCall();
-  const participants = useParticipants();
+  const participants = usePeople();
   const { copied, copy } = useCopy();
   const [mutingAll, setMutingAll] = useState(false);
 

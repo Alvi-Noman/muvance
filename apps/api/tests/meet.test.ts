@@ -34,6 +34,19 @@ vi.mock('@/modules/meet/livekit', () => ({
     end: vi.fn(async (code: string) => {
       live.ended.push(code);
     }),
+    // Fake call tokens are "jwt:<room>:<identity>[:screen]".
+    verify: vi.fn(async (jwt: string) => {
+      const [kind, room, identity, screen] = jwt.split(':');
+      if (kind !== 'jwt' || !room || !identity) return null;
+      return {
+        room,
+        identity,
+        metadata: JSON.stringify(screen ? { role: 'guest', screenOf: identity } : { role: 'host' }),
+      };
+    }),
+    screenToken: vi.fn(async (code: string, owner: string, name: string) =>
+      JSON.stringify({ code, screenOf: owner, name }),
+    ),
   },
 }));
 
@@ -251,6 +264,27 @@ describe('meet', () => {
 
     await agent.post(`/api/meet/rooms/${room.code}/end`);
     expect(live.ended).toEqual([room.code]);
+  });
+
+  it('lets someone in the call present their phone screen from the Android app', async () => {
+    const { room } = await newRoom();
+    live.people = [person('u_alvi', 'Alvi')];
+    const ask = (token: string) =>
+      request(app).post(`/api/meet/rooms/${room.code}/screen-token`).send({ token });
+
+    const ok = await ask(`jwt:${room.code}:u_alvi`);
+    expect(ok.status).toBe(200);
+    expect(JSON.parse(ok.body.token as string)).toEqual({
+      code: room.code,
+      screenOf: 'u_alvi',
+      name: 'Alvi',
+    });
+
+    // Not a real token, another meeting's, someone not in the call, or a presentation itself.
+    expect((await ask('forged')).status).toBe(403);
+    expect((await ask(`jwt:abc-defg-hij:u_alvi`)).status).toBe(403);
+    expect((await ask(`jwt:${room.code}:g_left`)).status).toBe(403);
+    expect((await ask(`jwt:${room.code}:u_alvi:screen`)).status).toBe(403);
   });
 });
 

@@ -1,0 +1,19 @@
+{
+  "appId": "com.muvance.meet",
+  "appName": "Muvance Meet",
+  "webDir": "www",
+  "server": {
+    "url": "https://meet.muvance.com",
+    "errorPath": "offline.html"
+  },
+  "backgroundColor": "#0f0f10",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "disable",
+      "style": "DARK"
+    }
+  }
+}
