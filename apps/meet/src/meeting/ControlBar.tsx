@@ -258,7 +258,6 @@ export function ControlBar() {
             onClick={toggleScreen}
             active={isScreenShareEnabled}
             label={isScreenShareEnabled ? 'Stop presenting' : 'Present your screen'}
-            className="hidden sm:inline-flex"
           >
             <MonitorUp />
           </CircleButton>

@@ -5,6 +5,7 @@ import {
   type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 import { RoomEvent, Track } from 'livekit-client';
+import { Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { trackKey, useCall } from './call-context';
 import { Tile } from './Tile';
@@ -45,7 +46,7 @@ function keyOf(ref: TrackReferenceOrPlaceholder) {
 }
 
 export function Stage() {
-  const { prefs, pinned } = useCall();
+  const { prefs, pinned, hideOthersOnScreenShare, setHideOthersOnScreenShare } = useCall();
   const { ref, width, height } = useSize();
 
   const tracks = useTracks(
@@ -93,12 +94,32 @@ export function Stage() {
 
   if (focus) {
     const others = [...screens, ...visibleCameras].filter((t) => keyOf(t) !== keyOf(focus));
+    const showOthers = others.length > 0 && !hideOthersOnScreenShare;
     return (
       <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row">
-        <div className="relative min-h-0 flex-1">
+        <div className="relative min-h-0 flex-1 group">
           <Tile trackRef={focus} large className="absolute inset-0" />
+          {others.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setHideOthersOnScreenShare(!hideOthersOnScreenShare)}
+              className="absolute top-3 right-3 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 lg:hidden"
+              aria-label={
+                hideOthersOnScreenShare ? 'Show other participants' : 'Hide other participants'
+              }
+              title={hideOthersOnScreenShare ? 'Show participants' : 'Hide participants'}
+            >
+              <span className="inline-flex size-8 items-center justify-center rounded-full bg-black/50 hover:bg-black/70">
+                {hideOthersOnScreenShare ? (
+                  <Eye className="size-4" />
+                ) : (
+                  <EyeOff className="size-4" />
+                )}
+              </span>
+            </button>
+          )}
         </div>
-        {others.length > 0 && (
+        {showOthers && (
           <div className="flex shrink-0 gap-2 overflow-x-auto lg:w-64 lg:flex-col lg:overflow-x-visible lg:overflow-y-auto">
             {others.map((t) => (
               <Tile

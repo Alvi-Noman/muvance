@@ -50,6 +50,9 @@ export interface CallState {
   markSelfMuted: () => void;
   leave: () => void;
   endForAll: () => Promise<void>;
+  /** Hide other participants' tiles when viewing screen share on mobile. */
+  hideOthersOnScreenShare: boolean;
+  setHideOthersOnScreenShare: (hide: boolean) => void;
 }
 
 export const CallContext = createContext<CallState | null>(null);

@@ -351,6 +351,7 @@ function CallScreen({
 
   const recording = useRecording(code, toast);
   const [confirmRecordingOpen, setConfirmRecordingOpen] = useState(false);
+  const [hideOthersOnScreenShare, setHideOthersOnScreenShare] = useState(false);
 
   const endForAll = useCallback(async () => {
     try {
@@ -384,6 +385,8 @@ function CallScreen({
       recording,
       confirmRecordingOpen,
       setConfirmRecordingOpen,
+      hideOthersOnScreenShare,
+      setHideOthersOnScreenShare,
     }),
     [
       code,
@@ -404,6 +407,7 @@ function CallScreen({
       endForAll,
       recording,
       confirmRecordingOpen,
+      hideOthersOnScreenShare,
     ],
   );
 
