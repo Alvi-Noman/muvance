@@ -23,6 +23,7 @@ import {
 import { Avatar } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/cn';
+import { enterFullscreen } from '@/lib/fullscreen';
 import { roleOf, trackKey, useCall } from './call-context';
 
 export function Tile({
@@ -59,7 +60,7 @@ export function Tile({
 
   const fullscreen = () => {
     setMenuOpen(false);
-    void tileRef.current?.requestFullscreen?.().catch(() => {});
+    enterFullscreen(tileRef.current);
   };
 
   const hostAction = async (action: 'mute' | 'remove') => {
@@ -186,7 +187,7 @@ export function Tile({
       </span>
 
       {/* Hover menu: pin, full screen, and for hosts: mute, remove */}
-      <div className="absolute top-2 left-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+      <div className="absolute top-2 left-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
         <div className="relative">
           <button
             type="button"

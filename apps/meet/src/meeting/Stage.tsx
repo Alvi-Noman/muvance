@@ -1,12 +1,13 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   isTrackReference,
   useTracks,
   type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
 import { RoomEvent, Track } from 'livekit-client';
-import { Eye, EyeOff } from 'lucide-react';
+import { Maximize, Minimize, PanelBottomClose, PanelBottomOpen } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { enterFullscreen, exitFullscreen } from '@/lib/fullscreen';
 import { trackKey, useCall } from './call-context';
 import { Tile } from './Tile';
 
@@ -41,13 +42,40 @@ function useSize() {
   return { ref, ...size };
 }
 
+const sideways = '(orientation: landscape) and (max-height: 500px)';
+
+/** A phone turned sideways: little height, so a presentation gets the whole screen. */
+function usePhoneSideways() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia(sideways);
+      query.addEventListener('change', onChange);
+      return () => query.removeEventListener('change', onChange);
+    },
+    () => window.matchMedia(sideways).matches,
+  );
+}
+
+function useIsFullscreen() {
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    const onChange = () => setFull(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  return full;
+}
+
 function keyOf(ref: TrackReferenceOrPlaceholder) {
   return trackKey(ref.participant.identity, ref.source);
 }
 
 export function Stage() {
-  const { prefs, pinned, hideOthersOnScreenShare, setHideOthersOnScreenShare } = useCall();
+  const { prefs, pinned, stripHidden, setStripHidden } = useCall();
   const { ref, width, height } = useSize();
+  const focusRef = useRef<HTMLDivElement>(null);
+  const phoneSideways = usePhoneSideways();
+  const isFullscreen = useIsFullscreen();
 
   const tracks = useTracks(
     [
@@ -94,30 +122,37 @@ export function Stage() {
 
   if (focus) {
     const others = [...screens, ...visibleCameras].filter((t) => keyOf(t) !== keyOf(focus));
-    const showOthers = others.length > 0 && !hideOthersOnScreenShare;
+    // Sideways on a phone, the presentation takes the whole space unless you bring the row back.
+    const hidden = stripHidden ?? phoneSideways;
+    const showOthers = others.length > 0 && !hidden;
+    const roundButton =
+      'inline-flex size-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm transition hover:bg-black/80 [&_svg]:size-5';
     return (
       <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row">
-        <div className="relative min-h-0 flex-1 group">
+        <div ref={focusRef} className="group relative min-h-0 flex-1 bg-call">
           <Tile trackRef={focus} large className="absolute inset-0" />
-          {others.length > 0 && (
+          <div className="absolute right-2 bottom-2 z-10 flex gap-2 transition lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
+            {others.length > 0 && !isFullscreen && (
+              <button
+                type="button"
+                onClick={() => setStripHidden(!hidden)}
+                className={cn(roundButton, 'lg:hidden')}
+                aria-label={hidden ? 'Show everyone' : 'Hide everyone else'}
+                title={hidden ? 'Show everyone' : 'Hide everyone else'}
+              >
+                {hidden ? <PanelBottomOpen /> : <PanelBottomClose />}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setHideOthersOnScreenShare(!hideOthersOnScreenShare)}
-              className="absolute top-3 right-3 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 lg:hidden"
-              aria-label={
-                hideOthersOnScreenShare ? 'Show other participants' : 'Hide other participants'
-              }
-              title={hideOthersOnScreenShare ? 'Show participants' : 'Hide participants'}
+              onClick={() => (isFullscreen ? exitFullscreen() : enterFullscreen(focusRef.current))}
+              className={roundButton}
+              aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+              title={isFullscreen ? 'Exit full screen' : 'Full screen'}
             >
-              <span className="inline-flex size-8 items-center justify-center rounded-full bg-black/50 hover:bg-black/70">
-                {hideOthersOnScreenShare ? (
-                  <Eye className="size-4" />
-                ) : (
-                  <EyeOff className="size-4" />
-                )}
-              </span>
+              {isFullscreen ? <Minimize /> : <Maximize />}
             </button>
-          )}
+          </div>
         </div>
         {showOthers && (
           <div className="flex shrink-0 gap-2 overflow-x-auto lg:w-64 lg:flex-col lg:overflow-x-visible lg:overflow-y-auto">
