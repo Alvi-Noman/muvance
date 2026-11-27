@@ -10,6 +10,7 @@ const STATIC_ROUTES = [
   { path: '/services', priority: '0.9' },
   { path: '/how-we-work', priority: '0.8' },
   { path: '/about', priority: '0.8' },
+  { path: '/privacy', priority: '0.3' },
   { path: '/get-funded', priority: '0.8' },
   { path: '/training', priority: '0.7' },
   { path: '/blog', priority: '0.8' },

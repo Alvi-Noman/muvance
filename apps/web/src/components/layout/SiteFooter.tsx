@@ -40,7 +40,10 @@ export function SiteFooter({ minimal = false }: { minimal?: boolean }) {
 
         <div className="flex flex-col gap-2 py-8 text-sm text-neutral-500 sm:flex-row sm:justify-between">
           <p>
-            &copy; {new Date().getFullYear()} {siteConfig.name}. All rights reserved.
+            &copy; {new Date().getFullYear()} {siteConfig.name}. All rights reserved. ·{' '}
+            <Link to="/privacy" className="hover:text-neutral-950">
+              Privacy policy
+            </Link>
           </p>
           <p>Meta ads, done properly.</p>
         </div>
