@@ -9,6 +9,7 @@ gets HTTPS certificates for every domain automatically, and passes each one to i
 | `web`     | The public website (`muvance.com`)                                  |
 | `admin`   | The CRM (`admin.muvance.com`)                                       |
 | `meet`    | Video meetings (`meet.muvance.com`)                                 |
+| `chat`    | Muvance Chat, team and client conversations (`chat.muvance.com`)    |
 | `livekit` | The media server behind meetings (audio, video, screens)            |
 | `api`     | Node.js API (bookings, auth, CRM, meetings), talks to MongoDB       |
 
@@ -35,8 +36,8 @@ test then checks all three sites.
 
 Ubuntu 24.04 with 2 vCPU and 4 GB RAM is plenty (video calls of 5 people are light for LiveKit).
 
-1. Point DNS **A records** for `muvance.com`, `www.muvance.com`, `admin.muvance.com` and
-   `meet.muvance.com` to the VPS IP.
+1. Point DNS **A records** for `muvance.com`, `www.muvance.com`, `admin.muvance.com`,
+   `meet.muvance.com`, `mail.muvance.com` and `chat.muvance.com` to the VPS IP.
 2. Install Docker and allow SSH through the firewall:
 
    ```sh
@@ -143,6 +144,28 @@ the call in a hidden Chrome and saves it as an MP4 in `/opt/muvance/call-recordi
 - CPU: a recording uses about 2 cores, so this server records one or two calls at a time.
 - `deploy.sh` writes the recorder's settings (`runtime/egress.yaml`) from `runtime/livekit.env`.
 - Back up `/opt/muvance/call-recordings` if the recordings matter; they're only on this server.
+
+## Chat (chat.muvance.com)
+
+Muvance Chat (`apps/chat`, API module `apps/api/src/modules/chat`) is a Google Chat-style app for
+the team and clients: spaces (group conversations), direct messages, threads, reactions, files,
+@mentions and search.
+
+- **Team** members sign in with their @muvance.com mailbox and its password (they must have chosen
+  their own password in Muvance Mail first). Every mailbox is a chat user; deleting the mailbox ends
+  their chat access.
+- **Clients (guests)** are invited by email from a space's members list. The invite comes from the
+  teammate's own address and links to a page where they choose a password. Guests only see the
+  spaces they're in, and the people in them. Teammates manage guests in Settings → Guests (new
+  sign-in link, remove access).
+- **Live updates** use Server-Sent Events (`/api/chat/events`), held in the API's memory (one API
+  process).
+- **Email alerts:** a guest with messages from the team still unread after 10 minutes
+  (`CHAT_EMAIL_ALERT_MINUTES`) gets one email, from the teammate who wrote, and no more until they
+  open chat again.
+- **Files** (25 MB each) are stored in `/opt/muvance/chat-files`. Files attached but never sent are
+  deleted after a day. Back the folder up if the files matter.
+- **DNS:** A `chat` → server IP. Caddy gets the certificate on its own once the record exists.
 
 ## Team email (mail.muvance.com)
 

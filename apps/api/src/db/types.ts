@@ -317,3 +317,129 @@ export interface MailAddressDoc {
   createdAt: Date;
   updatedAt: Date;
 }
+
+/* Muvance Chat ------------------------------------------------------------------------------ */
+
+/**
+ * Someone who can use Muvance Chat: a teammate (signs in with their @muvance.com mailbox, kept in
+ * step with `mailAccounts`) or a guest (a client the team invited, with their own password).
+ */
+export interface ChatUserDoc {
+  _id: ObjectId;
+  kind: 'team' | 'guest';
+  email: string;
+  name: string;
+  company: string | null;
+  /** Guests only (bcrypt). Teammates use their mailbox password. */
+  passwordHash: string | null;
+  /** "invited": a guest who hasn't opened their link yet. "removed": no longer has access. */
+  status: 'invited' | 'active' | 'removed';
+  /** Guests' own picture. Teammates use their mailbox picture (`teamAvatarAt` is its version). */
+  avatar?: { data: Binary; contentType: string; updatedAt: Date } | null;
+  teamAvatarAt?: Date | null;
+  invitedBy: ObjectId | null;
+  createdAt: Date;
+  updatedAt: Date;
+  lastSeenAt: Date | null;
+  /** Guests: when we last emailed them about unread messages. */
+  emailNotifiedAt: Date | null;
+}
+
+export interface ChatSessionDoc {
+  _id: ObjectId;
+  tokenHash: string;
+  userId: ObjectId;
+  /**
+   * Teammates' mailbox password, AES-256-GCM encrypted (WEBMAIL_SECRET): invites and message
+   * alerts to guests are sent from their own address.
+   */
+  passwordEnc: string | null;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+/** A one-time link that lets a guest choose their password (first time, or a new one). */
+export interface ChatInviteDoc {
+  _id: ObjectId;
+  tokenHash: string;
+  userId: ObjectId;
+  invitedBy: ObjectId;
+  spaceId: ObjectId | null;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+/** A group conversation ("space") or a direct message between two people. */
+export interface ChatSpaceDoc {
+  _id: ObjectId;
+  kind: 'space' | 'dm';
+  name: string;
+  description: string;
+  discoverable: boolean;
+  /** Direct messages: the two people's ids, sorted and joined, so each pair has one. */
+  dmKey: string | null;
+  createdBy: ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+  lastMessageAt: Date | null;
+}
+
+export interface ChatMemberDoc {
+  _id: ObjectId;
+  spaceId: ObjectId;
+  userId: ObjectId;
+  role: 'manager' | 'member';
+  lastReadAt: Date | null;
+  muted: boolean;
+  joinedAt: Date;
+}
+
+export interface ChatMessageDoc {
+  _id: ObjectId;
+  spaceId: ObjectId;
+  authorId: ObjectId;
+  text: string;
+  threadId: ObjectId | null;
+  replyCount: number;
+  lastReplyAt: Date | null;
+  replierIds: ObjectId[];
+  attachments: {
+    id: ObjectId;
+    name: string;
+    size: number;
+    contentType: string;
+    width: number | null;
+    height: number | null;
+  }[];
+  reactions: { emoji: string; userIds: ObjectId[] }[];
+  /** People mentioned by id, plus "all" for <@all>. */
+  mentions: string[];
+  editedAt: Date | null;
+  deletedAt: Date | null;
+  createdAt: Date;
+}
+
+/** A file shared in chat, stored on disk at CHAT_FILES_DIR/<id>. */
+export interface ChatFileDoc {
+  _id: ObjectId;
+  spaceId: ObjectId;
+  uploaderId: ObjectId;
+  name: string;
+  size: number;
+  contentType: string;
+  width: number | null;
+  height: number | null;
+  /** Set when it's sent in a message; files never sent are deleted after a day. */
+  messageId: ObjectId | null;
+  createdAt: Date;
+}
+
+/** A guest to email about unread messages, if they still haven't read them by `dueAt`. */
+export interface ChatEmailAlertDoc {
+  _id: ObjectId; // the guest's id
+  spaceId: ObjectId;
+  messageId: ObjectId;
+  authorId: ObjectId;
+  queuedAt: Date;
+  dueAt: Date;
+}

@@ -51,6 +51,9 @@ EGRESS
 chmod 644 runtime/egress.yaml
 mkdir -p call-recordings && chmod 777 call-recordings
 
+# Chat: files people share are kept here (the API runs as its own user).
+mkdir -p chat-files && chmod 777 chat-files
+
 # Team email. The API (its own user) writes the accounts files into mail/config.
 mkdir -p mail/data mail/state mail/logs mail/config
 chmod 777 mail/config

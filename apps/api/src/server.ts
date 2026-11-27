@@ -4,6 +4,8 @@ import { closeDb, connectDb } from './db/client';
 import { seedDevOwner } from './db/seed-dev';
 import { logger } from './lib/logger';
 import { mailService } from './modules/mail/mail.service';
+import { chatAlerts } from './modules/chat/alerts';
+import { hub } from './modules/chat/hub';
 import { callRecordingsService } from './modules/meet/call-recordings.service';
 import { recordingsService } from './modules/recordings/recordings.service';
 
@@ -42,8 +44,27 @@ async function main() {
     60_000,
   ).unref();
 
+  // Every minute: email clients about chat messages they haven't read.
+  setInterval(
+    () =>
+      void chatAlerts
+        .run()
+        .catch((error: unknown) => logger.warn({ err: error }, 'Chat email alerts failed')),
+    60_000,
+  ).unref();
+  // Hourly: delete chat files that were attached but never sent.
+  setInterval(
+    () =>
+      void chatAlerts
+        .cleanUpFiles()
+        .catch((error: unknown) => logger.warn({ err: error }, 'Chat file clean-up failed')),
+    60 * 60_000,
+  ).unref();
+
   const shutdown = (signal: string) => {
     logger.info(`${signal} received, shutting down`);
+    // Open chat connections would otherwise keep the server from closing.
+    hub.closeAll();
     server.close(() => {
       void closeDb().finally(() => process.exit(0));
     });

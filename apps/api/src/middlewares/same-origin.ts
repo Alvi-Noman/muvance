@@ -7,6 +7,7 @@ const allowedOrigins = new Set([
   ...env.CORS_ORIGIN.split(','),
   new URL(env.ADMIN_URL).origin,
   new URL(env.MEET_URL).origin,
+  new URL(env.CHAT_URL).origin,
 ]);
 
 /**

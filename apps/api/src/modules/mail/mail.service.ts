@@ -79,7 +79,7 @@ const signatures: Record<string, (b: Buffer) => boolean> = {
 };
 
 /** Turns an uploaded data URL into image bytes, checking it really is the image type it claims. */
-function decodeAvatar(dataUrl: string) {
+export function decodeAvatar(dataUrl: string) {
   const match = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(dataUrl);
   const type = match?.[1];
   const bytes = match ? Buffer.from(match[2]!, 'base64') : Buffer.alloc(0);

@@ -14,14 +14,14 @@ export const WEBMAIL_COOKIE = 'mvm_session';
 const key = () => createHash('sha256').update(env.WEBMAIL_SECRET).digest();
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 
-function encrypt(text: string) {
+export function encrypt(text: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', key(), iv);
   const data = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
   return [iv, cipher.getAuthTag(), data].map((b) => b.toString('base64url')).join('.');
 }
 
-function decrypt(value: string) {
+export function decrypt(value: string) {
   const [iv, tag, data] = value.split('.').map((p) => Buffer.from(p, 'base64url'));
   const decipher = createDecipheriv('aes-256-gcm', key(), iv!);
   decipher.setAuthTag(tag!);

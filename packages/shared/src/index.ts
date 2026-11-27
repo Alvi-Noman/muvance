@@ -9,3 +9,4 @@ export * from './schemas/applications';
 export * from './schemas/meet';
 export * from './schemas/mail';
 export * from './schemas/webmail';
+export * from './schemas/chat';

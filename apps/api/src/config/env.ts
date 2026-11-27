@@ -95,6 +95,14 @@ const envSchema = z.object({
   WEBMAIL_SECRET: z.string().min(32).default('development-only-webmail-secret-0123456789'),
   WEBMAIL_SESSION_DAYS: z.coerce.number().int().min(1).max(90).default(30),
 
+  /** Public URL of Muvance Chat (chat.muvance.com), used in invite links and message alerts. */
+  CHAT_URL: z.url().default('http://localhost:5177'),
+  /** Where files shared in chat are kept. */
+  CHAT_FILES_DIR: z.string().min(1).default('./chat-files'),
+  CHAT_SESSION_DAYS: z.coerce.number().int().min(1).max(365).default(60),
+  /** Guests are emailed about messages they haven't read after this many minutes. */
+  CHAT_EMAIL_ALERT_MINUTES: z.coerce.number().int().min(1).max(1440).default(10),
+
   TRUST_PROXY: z
     .string()
     .default('false')

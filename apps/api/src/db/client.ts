@@ -6,6 +6,14 @@ import type {
   ActivityDoc,
   ApplicationDoc,
   CallRecordingDoc,
+  ChatEmailAlertDoc,
+  ChatFileDoc,
+  ChatInviteDoc,
+  ChatMemberDoc,
+  ChatMessageDoc,
+  ChatSessionDoc,
+  ChatSpaceDoc,
+  ChatUserDoc,
   MailAccountDoc,
   MailAddressDoc,
   WebmailProfileDoc,
@@ -90,6 +98,14 @@ export const collections = {
   mailAddresses: () => getDb().collection<MailAddressDoc>('mailAddresses'),
   webmailSessions: () => getDb().collection<WebmailSessionDoc>('webmailSessions'),
   webmailProfiles: () => getDb().collection<WebmailProfileDoc>('webmailProfiles'),
+  chatUsers: () => getDb().collection<ChatUserDoc>('chatUsers'),
+  chatSessions: () => getDb().collection<ChatSessionDoc>('chatSessions'),
+  chatInvites: () => getDb().collection<ChatInviteDoc>('chatInvites'),
+  chatSpaces: () => getDb().collection<ChatSpaceDoc>('chatSpaces'),
+  chatMembers: () => getDb().collection<ChatMemberDoc>('chatMembers'),
+  chatMessages: () => getDb().collection<ChatMessageDoc>('chatMessages'),
+  chatFiles: () => getDb().collection<ChatFileDoc>('chatFiles'),
+  chatEmailAlerts: () => getDb().collection<ChatEmailAlertDoc>('chatEmailAlerts'),
 };
 
 /** Brings data from earlier versions up to date. Safe to run on every start. */
@@ -256,6 +272,27 @@ async function ensureIndexes(database: Db) {
     database
       .collection('meetJoinRequests')
       .createIndex({ createdAt: 1 }, { expireAfterSeconds: 24 * 60 * 60 }),
+    // Muvance Chat
+    database.collection('chatUsers').createIndex({ email: 1 }, { unique: true }),
+    database.collection('chatSessions').createIndex({ tokenHash: 1 }, { unique: true }),
+    database.collection('chatSessions').createIndex({ userId: 1 }),
+    database.collection('chatSessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    database.collection('chatInvites').createIndex({ tokenHash: 1 }, { unique: true }),
+    database.collection('chatInvites').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    database
+      .collection('chatSpaces')
+      .createIndex(
+        { dmKey: 1 },
+        { unique: true, partialFilterExpression: { dmKey: { $type: 'string' } }, name: 'one_dm' },
+      ),
+    database.collection('chatMembers').createIndex({ spaceId: 1, userId: 1 }, { unique: true }),
+    database.collection('chatMembers').createIndex({ userId: 1 }),
+    database.collection('chatMessages').createIndex({ spaceId: 1, threadId: 1, createdAt: -1 }),
+    database.collection('chatMessages').createIndex({ spaceId: 1, createdAt: -1 }),
+    database.collection('chatMessages').createIndex({ threadId: 1, createdAt: 1 }),
+    database.collection('chatFiles').createIndex({ messageId: 1, createdAt: 1 }),
+    database.collection('chatFiles').createIndex({ spaceId: 1 }),
+    database.collection('chatEmailAlerts').createIndex({ dueAt: 1 }),
     database.collection('recordingChunks').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database.collection('leads').createIndex({ stage: 1, createdAt: -1 }),
     database.collection('leads').createIndex({ assigneeId: 1 }),

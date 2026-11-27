@@ -15,6 +15,7 @@ import { recordingsRouter, recordingUploadRouter } from '@/modules/recordings/re
 import { unfinishedRouter, unfinishedUploadRouter } from '@/modules/unfinished/unfinished.routes';
 import { mailAccountsRouter, mailAddressesRouter } from '@/modules/mail/mail.routes';
 import { webmailRouter } from '@/modules/webmail/webmail.routes';
+import { chatRouter } from '@/modules/chat/chat.routes';
 import { callRecordingsRouter } from '@/modules/meet/call-recordings.routes';
 import { meetRouter } from '@/modules/meet/meet.routes';
 import { meetingsRouter } from '@/modules/meetings/meetings.routes';
@@ -36,6 +37,8 @@ apiRouter.use('/applications', applicationUploadRouter);
 apiRouter.use('/meet', meetRouter);
 // Muvance Mail (mail.muvance.com). Its own sign-in, separate from the admin's.
 apiRouter.use('/webmail', webmailRouter);
+// Muvance Chat (chat.muvance.com): teammates and invited clients. Its own sign-in too.
+apiRouter.use('/chat', chatRouter);
 
 // Admin (signed-in users; each route also checks role permissions)
 apiRouter.use('/dashboard', requireAuth, dashboardRouter);

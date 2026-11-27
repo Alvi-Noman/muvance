@@ -34,3 +34,5 @@ apps/mobile/android/app/google-services.json
 *.keystore
 *.jks
 /call-recordings/
+/chat-files/
+apps/api/chat-files/

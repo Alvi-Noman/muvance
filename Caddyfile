@@ -73,6 +73,28 @@
 	}
 }
 
+# Muvance Chat: team and client conversations. Its live updates (/api/chat/events) stream
+# through here, so only the app itself is compressed.
+{$CHAT_ADDRESS} {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+	request_body {
+		max_size 30MB
+	}
+	import api
+	handle {
+		encode zstd gzip
+		reverse_proxy chat:80
+	}
+}
+
 # Muvance Mail (team webmail). Caddy's certificate for this name is also used by the mail
 # server for IMAP and SMTP.
 {$MAIL_ADDRESS} {

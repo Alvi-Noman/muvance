@@ -26,6 +26,8 @@ export function createApp() {
   // Profile pictures arrive as small images (resized in the browser), under 1 MB.
   const pictureJson = express.json({ limit: '1mb' });
   app.use((req, res, next) => {
+    // Chat file uploads are the raw file (read by their own route).
+    if (/^\/api\/chat\/spaces\/[^/]+\/files$/.test(req.path)) return next();
     if (req.path === '/api/webmail/send' || req.path === '/api/webmail/drafts') {
       return bigJson(req, res, next);
     }
@@ -39,7 +41,10 @@ export function createApp() {
   });
   app.use(cookieParser());
   if (!isTest) app.use(pinoHttp({ logger }));
-  app.use('/api', apiLimiter, sameOrigin, apiRouter);
+  // Chat has its own, roomier limit (a whole office may share one address).
+  const limiter: express.RequestHandler = (req, res, next) =>
+    req.path.startsWith('/chat/') ? next() : apiLimiter(req, res, next);
+  app.use('/api', limiter, sameOrigin, apiRouter);
 
   app.use(notFound);
   app.use(errorHandler);

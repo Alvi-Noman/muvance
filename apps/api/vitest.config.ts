@@ -11,6 +11,9 @@ export default defineConfig({
       NODE_ENV: 'test',
       LOG_LEVEL: 'silent',
       ADMIN_URL: 'http://admin.test',
+      CHAT_FILES_DIR: fileURLToPath(
+        new URL('./node_modules/.cache/test-chat-files', import.meta.url),
+      ),
       // Where the mail tests write the mail server's account files.
       MAIL_CONFIG_DIR: fileURLToPath(
         new URL('./node_modules/.cache/test-mail-config', import.meta.url),

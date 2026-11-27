@@ -20,6 +20,7 @@ services:
       WWW_ADDRESS: www.${SITE_DOMAIN}
       MEET_ADDRESS: meet.${SITE_DOMAIN}
       MAIL_ADDRESS: mail.${SITE_DOMAIN}
+      CHAT_ADDRESS: chat.${SITE_DOMAIN}
       SITE_URL: https://${SITE_DOMAIN}
     ports:
       - '80:80'
@@ -41,6 +42,8 @@ services:
         condition: service_healthy
       mailweb:
         condition: service_healthy
+      chat:
+        condition: service_healthy
     restart: unless-stopped
     logging: *logging
 
@@ -61,11 +64,14 @@ services:
       ADMIN_URL: https://${ADMIN_DOMAIN}
       SITE_URL: https://${SITE_DOMAIN}
       MEET_URL: https://meet.${SITE_DOMAIN}
+      CHAT_URL: https://chat.${SITE_DOMAIN}
+      # Files shared in chat.
+      CHAT_FILES_DIR: /chat-files
       LIVEKIT_URL: http://livekit:7880
       # Call recordings: the recorder writes to /out, the API reads the same folder here.
       CALL_RECORDINGS_DIR: /recordings
       EGRESS_OUTPUT_DIR: /out
-      CORS_ORIGIN: https://${SITE_DOMAIN},https://${ADMIN_DOMAIN},https://meet.${SITE_DOMAIN}
+      CORS_ORIGIN: https://${SITE_DOMAIN},https://${ADMIN_DOMAIN},https://meet.${SITE_DOMAIN},https://chat.${SITE_DOMAIN}
       # Team email: the API writes the mail server's accounts files here.
       MAIL_DOMAIN: ${SITE_DOMAIN}
       MAIL_HOST: mail.${SITE_DOMAIN}
@@ -73,6 +79,7 @@ services:
     volumes:
       - ./call-recordings:/recordings
       - ./mail/config:/mail-config
+      - ./chat-files:/chat-files
     restart: unless-stopped
     logging: *logging
 
@@ -95,6 +102,12 @@ services:
   # Muvance Mail, the webmail app (mail.<site domain>). Reads and sends through the API.
   mailweb:
     image: ${IMAGE_PREFIX}/muvance-mail:${IMAGE_TAG:-prod}
+    restart: unless-stopped
+    logging: *logging
+
+  # Muvance Chat, the team and client chat app (chat.<site domain>). Talks only to the API.
+  chat:
+    image: ${IMAGE_PREFIX}/muvance-chat:${IMAGE_TAG:-prod}
     restart: unless-stopped
     logging: *logging
 
