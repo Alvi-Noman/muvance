@@ -89,12 +89,16 @@ export function isEmojiOnly(text: string) {
 
 /** Text without formatting, for previews and notifications. */
 export function plainText(text: string, names: Map<string, string>) {
-  return text
-    .replace(/<@all>/g, '@all')
-    .replace(/<@([a-f\d]{24})>/g, (_m, id: string) => `@${names.get(id) ?? 'someone'}`)
-    .replace(/```(?:[a-z]*\n)?/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    text
+      .replace(/<@all>/g, '@all')
+      .replace(/<@([a-f\d]{24})>/g, (_m, id: string) => `@${names.get(id) ?? 'someone'}`)
+      .replace(/```(?:[a-z]*\n)?/g, '')
+      // *bold*, _italic_, ~strike~ and `code` read as plain words in previews.
+      .replace(/(^|[\s(])([*_~`])(\S(?:[^\n]*?\S)?)\2(?=$|[\s.,!?:;)])/g, '$1$3')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 export const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '🙏', '👀', '✅', '🔥'];

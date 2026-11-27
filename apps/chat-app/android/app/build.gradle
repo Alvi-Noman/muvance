@@ -1,0 +1,61 @@
+apply plugin: 'com.android.application'
+
+// The app opens this site. Changes to the site reach the app without a new version.
+def host = 'chat.muvance.com'
+
+android {
+    namespace = 'com.muvance.chat'
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId 'com.muvance.chat'
+        minSdkVersion 24
+        targetSdkVersion 36
+        versionCode 1
+        versionName '1.0'
+
+        resValue 'string', 'appName', 'Muvance Chat'
+        resValue 'string', 'launcherName', 'Muvance Chat'
+        resValue 'string', 'hostName', host
+        resValue 'string', 'launchUrl', "https://${host}/"
+        resValue 'string', 'providerAuthority', 'com.muvance.chat.fileprovider'
+        // Android checks https://chat.muvance.com/.well-known/assetlinks.json against this, so
+        // the site opens full screen, without a browser address bar.
+        resValue 'string', 'assetStatements', """
+            [{ \\"relation\\": [\\"delegate_permission/common.handle_all_urls\\"],
+               \\"target\\": {\\"namespace\\": \\"web\\", \\"site\\": \\"https://${host}\\"}}]
+        """
+    }
+
+    // Signing details come from the environment (see README.md), never from the repo.
+    signingConfigs {
+        release {
+            if (System.getenv('MUVANCE_KEYSTORE')) {
+                storeFile file(System.getenv('MUVANCE_KEYSTORE'))
+                storePassword System.getenv('MUVANCE_KEYSTORE_PASSWORD')
+                keyAlias 'muvance'
+                keyPassword System.getenv('MUVANCE_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        resValues true
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

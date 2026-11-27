@@ -74,19 +74,20 @@
 }
 
 # Muvance Chat: team and client conversations. Its live updates (/api/chat/events) stream
-# through here, so only the app itself is compressed.
+# through here, so only the app itself is compressed. The microphone (voice messages) and camera
+# (photos from a phone) are allowed; files go up to 100 MB.
 {$CHAT_ADDRESS} {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "same-origin"
-		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=()"
 		X-Robots-Tag "noindex, nofollow"
 		-Server
 	}
 	request_body {
-		max_size 30MB
+		max_size 110MB
 	}
 	import api
 	handle {

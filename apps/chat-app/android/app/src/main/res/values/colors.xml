@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The chat's own background. -->
+    <color name="background">#F4F4F2</color>
+</resources>

@@ -1,30 +1,60 @@
-import { memo, useState, type KeyboardEvent } from 'react';
+import { memo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  Bookmark,
+  BookmarkMinus,
   Copy,
-  Download,
-  FileText,
+  Forward,
+  MailOpen,
   MessageSquareReply,
   MoreVertical,
   Pencil,
+  Pin,
+  PinOff,
+  Quote,
   SmilePlus,
   Trash2,
-  X,
 } from 'lucide-react';
-import type { ChatAttachmentDto, ChatMessageDto, ChatSpaceDto } from '@muvance/shared';
-import { api, errorMessage, fileUrl } from '@/lib/api';
-import { personOf, upsertMessage, useChat } from '@/lib/data';
-import { isEmojiOnly, QUICK_REACTIONS, renderMessage } from '@/lib/format';
+import { useNavigate } from 'react-router';
+import type { ChatMessageDto, ChatSpaceDto } from '@muvance/shared';
+import { api, errorMessage } from '@/lib/api';
+import { patchSpace, personOf, setSaved, upsertMessage, useChat } from '@/lib/data';
+import { isEmojiOnly, plainText, QUICK_REACTIONS, renderMessage } from '@/lib/format';
 import { toEditable, toStored } from '@/lib/mentions';
-import { cn, fileSize, longDate, shortDate, timeOf } from '@/lib/utils';
+import { describeFiles } from '@/lib/notify';
+import { cn, longDate, shortDate, timeOf } from '@/lib/utils';
 import { EmojiPicker } from './EmojiPicker';
-import { Avatar, Badge, Button, Menu, MenuItem, useToast } from './ui';
+import { ForwardDialog } from './dialogs/ForwardDialog';
+import { Attachments, LinkPreview } from './Media';
+import { Avatar, Badge, Button, Menu, MenuItem, StatusEmoji, useToast } from './ui';
+
+/** Jumps to a message in the conversation, if it's loaded, and flashes it. */
+export function scrollToMessage(id: string) {
+  const el = document.getElementById(`m-${id}`);
+  if (!el) return false;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.remove('animate-flash');
+  void el.offsetWidth;
+  el.classList.add('animate-flash');
+  return true;
+}
+
+const isTouch = () => window.matchMedia('(hover: none)').matches;
+
+interface Action {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  run: () => void;
+  danger?: boolean;
+}
 
 export const MessageItem = memo(function MessageItem({
   message,
   grouped,
   space,
   onOpenThread,
+  onQuote,
   inThread,
   highlight,
 }: {
@@ -33,16 +63,23 @@ export const MessageItem = memo(function MessageItem({
   grouped: boolean;
   space: ChatSpaceDto;
   onOpenThread?: (id: string) => void;
+  /** "Quote in reply": puts the message above the message box. */
+  onQuote?: (message: ChatMessageDto) => void;
   inThread?: boolean;
   highlight?: boolean;
 }) {
-  const { me, people } = useChat();
+  const { me, people, savedIds } = useChat();
   const qc = useQueryClient();
   const toast = useToast();
+  const navigate = useNavigate();
   const author = personOf(people, message.authorId);
   const mine = message.authorId === me.id;
+  const saved = savedIds.has(message.id);
   const [editing, setEditing] = useState(false);
   const [picker, setPicker] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  const [forwarding, setForwarding] = useState(false);
+  const press = useRef<number | undefined>(undefined);
   const manager =
     me.canManage &&
     space.kind === 'space' &&
@@ -50,6 +87,7 @@ export const MessageItem = memo(function MessageItem({
 
   const react = async (emoji: string) => {
     setPicker(false);
+    setSheet(false);
     try {
       upsertMessage(
         qc,
@@ -64,11 +102,129 @@ export const MessageItem = memo(function MessageItem({
     if (!window.confirm('Delete this message for everyone?')) return;
     try {
       await api.delete(`/messages/${message.id}`);
-      upsertMessage(qc, { ...message, deleted: true, text: '', attachments: [], reactions: [] });
+      upsertMessage(qc, {
+        ...message,
+        deleted: true,
+        text: '',
+        attachments: [],
+        reactions: [],
+        quote: null,
+        pinned: null,
+        linkPreview: null,
+      });
+      if (saved) setSaved(qc, message.id, false);
     } catch (error) {
       toast(errorMessage(error));
     }
   };
+
+  const pin = async () => {
+    try {
+      const updated = await api.put<ChatMessageDto>(`/messages/${message.id}/pin`, {
+        pinned: !message.pinned,
+      });
+      upsertMessage(qc, updated);
+      toast(updated.pinned ? 'Pinned for everyone here' : 'Unpinned');
+    } catch (error) {
+      toast(errorMessage(error));
+    }
+  };
+
+  const save = async () => {
+    setSaved(qc, message.id, !saved);
+    try {
+      await api.put(`/messages/${message.id}/save`, { saved: !saved });
+      toast(saved ? 'Removed from Saved' : 'Saved. Find it under Saved in the sidebar.');
+    } catch (error) {
+      setSaved(qc, message.id, saved);
+      toast(errorMessage(error));
+    }
+  };
+
+  const markUnread = async () => {
+    try {
+      const updated = await api.put<ChatSpaceDto>(`/spaces/${space.id}/unread`, {
+        messageId: message.id,
+      });
+      // Leave, so opening it doesn't mark it read again at once.
+      navigate('/');
+      patchSpace(qc, space.id, () => updated);
+      toast('Marked as unread');
+    } catch (error) {
+      toast(errorMessage(error));
+    }
+  };
+
+  const actions: Action[] = [];
+  if (!message.deleted) {
+    if (onQuote) {
+      actions.push({
+        key: 'quote',
+        label: 'Quote in reply',
+        icon: <Quote />,
+        run: () => onQuote(message),
+      });
+    }
+    if (!inThread && !message.threadId && onOpenThread) {
+      actions.push({
+        key: 'thread',
+        label: 'Reply in thread',
+        icon: <MessageSquareReply />,
+        run: () => onOpenThread(message.id),
+      });
+    }
+    actions.push({
+      key: 'forward',
+      label: 'Forward',
+      icon: <Forward />,
+      run: () => setForwarding(true),
+    });
+    if (!message.threadId) {
+      actions.push({
+        key: 'pin',
+        label: message.pinned ? 'Unpin' : 'Pin to this conversation',
+        icon: message.pinned ? <PinOff /> : <Pin />,
+        run: () => void pin(),
+      });
+    }
+    actions.push({
+      key: 'save',
+      label: saved ? 'Remove from Saved' : 'Save for later',
+      icon: saved ? <BookmarkMinus /> : <Bookmark />,
+      run: () => void save(),
+    });
+    if (!mine && !message.threadId && !inThread) {
+      actions.push({
+        key: 'unread',
+        label: 'Mark as unread',
+        icon: <MailOpen />,
+        run: () => void markUnread(),
+      });
+    }
+    if (message.text) {
+      actions.push({
+        key: 'copy',
+        label: 'Copy text',
+        icon: <Copy />,
+        run: () =>
+          void navigator.clipboard
+            .writeText(toEditable(message.text, people))
+            .then(() => toast('Copied')),
+      });
+    }
+    if (mine && message.text) {
+      actions.push({ key: 'edit', label: 'Edit', icon: <Pencil />, run: () => setEditing(true) });
+    }
+    if (mine || manager) {
+      actions.push({
+        key: 'delete',
+        label: 'Delete',
+        icon: <Trash2 />,
+        danger: true,
+        run: () => void remove(),
+      });
+    }
+  }
 
   const mention = (id: string) => {
     const isMe = id === me.id || id === 'all';
@@ -84,6 +240,17 @@ export const MessageItem = memo(function MessageItem({
     );
   };
 
+  // Phones: hold a message for its actions.
+  const touchStart = (e: React.TouchEvent) => {
+    if ((e.target as HTMLElement).closest('a, button, audio, video, textarea')) return;
+    window.clearTimeout(press.current);
+    press.current = window.setTimeout(() => {
+      navigator.vibrate?.(15);
+      setSheet(true);
+    }, 450);
+  };
+  const touchEnd = () => window.clearTimeout(press.current);
+
   if (message.deleted) {
     return (
       <div className={cn('flex gap-3 px-4 sm:px-5', grouped ? 'py-0.5' : 'pt-3 pb-0.5')}>
@@ -93,14 +260,26 @@ export const MessageItem = memo(function MessageItem({
     );
   }
 
+  const names = new Map([...people].map(([id, p]) => [id, p.name]));
+
   return (
     <div
       id={`m-${message.id}`}
       className={cn(
-        'group relative flex gap-3 px-4 transition-colors hover:bg-black/[0.02] sm:px-5',
+        'group relative flex gap-3 px-4 transition-colors hover:bg-black/[0.02] sm:px-5 [@media(hover:none)]:select-none',
         grouped ? 'py-0.5' : 'pt-3 pb-0.5',
+        message.pinned && !inThread && 'bg-amber-50/50',
         highlight && 'animate-flash',
       )}
+      onTouchStart={touchStart}
+      onTouchEnd={touchEnd}
+      onTouchMove={touchEnd}
+      onContextMenu={(e) => {
+        if (isTouch()) {
+          e.preventDefault();
+          setSheet(true);
+        }
+      }}
     >
       <div className="w-9 shrink-0">
         {grouped ? (
@@ -115,6 +294,7 @@ export const MessageItem = memo(function MessageItem({
         {!grouped && (
           <div className="flex flex-wrap items-baseline gap-x-2">
             <span className="text-sm font-semibold">{author.name}</span>
+            <StatusEmoji person={author} />
             {author.kind === 'guest' && (
               <Badge tone="guest">{author.company ? `Guest · ${author.company}` : 'Guest'}</Badge>
             )}
@@ -122,6 +302,44 @@ export const MessageItem = memo(function MessageItem({
               {timeOf(message.createdAt)}
             </time>
           </div>
+        )}
+
+        {(message.pinned || message.forwarded || saved) && (
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
+            {message.forwarded && (
+              <span className="inline-flex items-center gap-1 italic">
+                <Forward className="size-3.5" /> Forwarded
+              </span>
+            )}
+            {message.pinned && !inThread && (
+              <span className="inline-flex items-center gap-1 text-amber-700">
+                <Pin className="size-3.5" /> Pinned by{' '}
+                {message.pinned.byId === me.id ? 'you' : personOf(people, message.pinned.byId).name}
+              </span>
+            )}
+            {saved && (
+              <span className="inline-flex items-center gap-1 text-accent">
+                <Bookmark className="size-3.5 fill-current" /> Saved
+              </span>
+            )}
+          </div>
+        )}
+
+        {message.quote && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!scrollToMessage(message.quote!.id)) toast('That message is further up.');
+            }}
+            className="mt-1 mb-0.5 block w-full max-w-md rounded-lg border-l-[3px] border-accent/60 bg-black/[0.035] px-3 py-1.5 text-left transition hover:bg-black/[0.06]"
+          >
+            <span className="block text-xs font-semibold text-accent">
+              {personOf(people, message.quote.authorId).name}
+            </span>
+            <span className="line-clamp-2 text-sm text-ink/75">
+              {plainText(message.quote.text, names) || message.quote.attachment || 'Message'}
+            </span>
+          </button>
         )}
 
         {editing ? (
@@ -136,7 +354,7 @@ export const MessageItem = memo(function MessageItem({
           message.text && (
             <div
               className={cn(
-                'text-[15px] leading-relaxed break-words text-[#1f1f1d]',
+                'text-[15px] leading-relaxed break-words text-[#1f1f1d] [@media(hover:none)]:select-text',
                 isEmojiOnly(message.text) && 'text-4xl leading-tight',
               )}
             >
@@ -150,21 +368,21 @@ export const MessageItem = memo(function MessageItem({
           )
         )}
 
-        {message.attachments.length > 0 && <Attachments files={message.attachments} />}
+        {message.attachments.length > 0 && <Attachments files={message.attachments} mine={mine} />}
+
+        {message.linkPreview && !editing && <LinkPreview preview={message.linkPreview} />}
 
         {message.reactions.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {message.reactions.map((r) => {
               const reacted = r.userIds.includes(me.id);
-              const names = r.userIds.map((id) =>
-                id === me.id ? 'You' : personOf(people, id).name,
-              );
+              const who = r.userIds.map((id) => (id === me.id ? 'You' : personOf(people, id).name));
               return (
                 <button
                   key={r.emoji}
                   type="button"
                   onClick={() => void react(r.emoji)}
-                  title={names.join(', ')}
+                  title={who.join(', ')}
                   className={cn(
                     'inline-flex h-7 items-center gap-1.5 rounded-full border px-2 text-sm transition',
                     reacted
@@ -207,9 +425,14 @@ export const MessageItem = memo(function MessageItem({
         )}
       </div>
 
-      {/* Actions on hover (always reachable by keyboard) */}
+      {/* Actions on hover (always reachable by keyboard). Phones hold the message instead. */}
       {!editing && (
-        <div className="absolute -top-4 right-4 z-10 hidden items-center gap-0.5 rounded-xl border border-line bg-white p-0.5 shadow-sm group-focus-within:flex group-hover:flex [@media(hover:none)]:group-active:flex">
+        <div
+          className={cn(
+            'absolute -top-4 right-4 z-10 hidden items-center gap-0.5 rounded-xl border border-line bg-white p-0.5 shadow-sm group-focus-within:flex group-hover:flex [@media(hover:none)]:!hidden',
+            picker && 'flex',
+          )}
+        >
           {QUICK_REACTIONS.slice(0, 3).map((e) => (
             <button
               key={e}
@@ -225,7 +448,7 @@ export const MessageItem = memo(function MessageItem({
             <ActionButton label="Add a reaction" onClick={() => setPicker((p) => !p)}>
               <SmilePlus />
             </ActionButton>
-            {picker && (
+            {picker && !isTouch() && (
               <EmojiPicker
                 onPick={(e) => void react(e)}
                 onClose={() => setPicker(false)}
@@ -233,6 +456,11 @@ export const MessageItem = memo(function MessageItem({
               />
             )}
           </div>
+          {onQuote && (
+            <ActionButton label="Quote in reply" onClick={() => onQuote(message)}>
+              <Quote />
+            </ActionButton>
+          )}
           {!inThread && !message.threadId && onOpenThread && (
             <ActionButton label="Reply in thread" onClick={() => onOpenThread(message.id)}>
               <MessageSquareReply />
@@ -245,52 +473,122 @@ export const MessageItem = memo(function MessageItem({
               </ActionButton>
             )}
           >
-            {(close) => (
-              <>
-                {message.text && (
+            {(close) =>
+              actions
+                .filter((a) => a.key !== 'quote' && a.key !== 'thread')
+                .map((a) => (
                   <MenuItem
-                    icon={<Copy />}
+                    key={a.key}
+                    icon={a.icon}
+                    danger={a.danger}
                     onClick={() => {
                       close();
-                      void navigator.clipboard
-                        .writeText(toEditable(message.text, people))
-                        .then(() => toast('Copied'));
+                      a.run();
                     }}
                   >
-                    Copy text
+                    {a.label}
                   </MenuItem>
-                )}
-                {mine && message.text && (
-                  <MenuItem
-                    icon={<Pencil />}
-                    onClick={() => {
-                      close();
-                      setEditing(true);
-                    }}
-                  >
-                    Edit
-                  </MenuItem>
-                )}
-                {(mine || manager) && (
-                  <MenuItem
-                    icon={<Trash2 />}
-                    danger
-                    onClick={() => {
-                      close();
-                      void remove();
-                    }}
-                  >
-                    Delete
-                  </MenuItem>
-                )}
-              </>
-            )}
+                ))
+            }
           </Menu>
         </div>
       )}
+
+      {picker && isTouch() && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          onClick={() => setPicker(false)}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <EmojiPicker onPick={(e) => void react(e)} onClose={() => setPicker(false)} />
+          </div>
+        </div>
+      )}
+      {sheet && (
+        <ActionSheet
+          onClose={() => setSheet(false)}
+          onReact={(e) => void react(e)}
+          onMoreReactions={() => {
+            setSheet(false);
+            setPicker(true);
+          }}
+          actions={actions}
+          preview={plainText(message.text, names) || describeFiles(message)}
+        />
+      )}
+      {forwarding && <ForwardDialog message={message} onClose={() => setForwarding(false)} />}
     </div>
   );
 });
+
+function ActionSheet({
+  onClose,
+  onReact,
+  onMoreReactions,
+  actions,
+  preview,
+}: {
+  onClose: () => void;
+  onReact: (emoji: string) => void;
+  onMoreReactions: () => void;
+  actions: Action[];
+  preview: string;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end"
+      role="dialog"
+      aria-modal
+      aria-label="Message actions"
+    >
+      <div className="absolute inset-0 bg-black/35" onClick={onClose} />
+      <div className="animate-slide-in relative max-h-[85dvh] w-full overflow-y-auto rounded-t-3xl bg-white pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-2xl">
+        <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-black/15" />
+        {preview && <p className="line-clamp-2 px-5 pt-3 text-sm text-muted">{preview}</p>}
+        <div className="flex items-center justify-between gap-1 px-4 py-3">
+          {QUICK_REACTIONS.slice(0, 6).map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => onReact(e)}
+              className="inline-flex size-11 items-center justify-center rounded-full bg-canvas text-2xl transition active:scale-90"
+              aria-label={`React with ${e}`}
+            >
+              {e}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={onMoreReactions}
+            className="inline-flex size-11 items-center justify-center rounded-full bg-canvas text-muted"
+            aria-label="More reactions"
+          >
+            <SmilePlus className="size-5" />
+          </button>
+        </div>
+        <div className="border-t border-line px-2 pt-1">
+          {actions.map((a) => (
+            <button
+              key={a.key}
+              type="button"
+              onClick={() => {
+                onClose();
+                a.run();
+              }}
+              className={cn(
+                'flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-[15px] active:bg-black/5 [&_svg]:size-5 [&_svg]:text-muted',
+                a.danger && 'text-red-600 [&_svg]:text-red-500',
+              )}
+            >
+              {a.icon}
+              {a.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ActionButton({
   label,
@@ -360,7 +658,9 @@ function EditBox({
         className="w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none"
       />
       <div className="flex items-center justify-end gap-2">
-        <span className="mr-auto text-xs text-muted">Enter to save · Esc to cancel</span>
+        <span className="mr-auto text-xs text-muted max-sm:hidden">
+          Enter to save · Esc to cancel
+        </span>
         <Button variant="ghost" onClick={() => onDone(null)} className="h-8">
           Cancel
         </Button>
@@ -368,99 +668,6 @@ function EditBox({
           Save
         </Button>
       </div>
-    </div>
-  );
-}
-
-const isImage = (f: ChatAttachmentDto) =>
-  ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(f.contentType);
-
-export function Attachments({ files }: { files: ChatAttachmentDto[] }) {
-  const [open, setOpen] = useState<ChatAttachmentDto | null>(null);
-  const images = files.filter(isImage);
-  const others = files.filter((f) => !isImage(f));
-  return (
-    <div className="mt-1.5 space-y-1.5">
-      {images.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {images.map((f) => {
-            const ratio = f.width && f.height ? f.width / f.height : 4 / 3;
-            const h = Math.min(260, images.length > 1 ? 180 : 260);
-            return (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setOpen(f)}
-                className="overflow-hidden rounded-xl border border-line bg-canvas"
-                style={{ height: h, width: Math.min(420, Math.max(120, h * ratio)) }}
-              >
-                <img
-                  src={fileUrl(f.id)}
-                  alt={f.name}
-                  loading="lazy"
-                  className="size-full object-cover transition hover:opacity-95"
-                />
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {others.map((f) => (
-        <a
-          key={f.id}
-          href={fileUrl(f.id, !f.contentType.startsWith('application/pdf'))}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex max-w-sm items-center gap-3 rounded-xl border border-line bg-white p-3 transition hover:border-neutral-300 hover:bg-canvas"
-        >
-          <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
-            <FileText className="size-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">{f.name}</span>
-            <span className="block text-xs text-muted">{fileSize(f.size)}</span>
-          </span>
-          <Download className="size-4 shrink-0 text-muted" />
-        </a>
-      ))}
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col bg-black/90"
-          onClick={() => setOpen(null)}
-          role="dialog"
-          aria-label={open.name}
-        >
-          <div
-            className="flex items-center gap-3 p-3 text-white"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="min-w-0 flex-1 truncate text-sm">{open.name}</p>
-            <a
-              href={fileUrl(open.id, true)}
-              className="inline-flex size-9 items-center justify-center rounded-lg hover:bg-white/10"
-              aria-label="Download"
-            >
-              <Download className="size-5" />
-            </a>
-            <button
-              type="button"
-              onClick={() => setOpen(null)}
-              className="inline-flex size-9 items-center justify-center rounded-lg hover:bg-white/10"
-              aria-label="Close"
-            >
-              <X className="size-5" />
-            </button>
-          </div>
-          <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-            <img
-              src={fileUrl(open.id)}
-              alt={open.name}
-              className="max-h-full max-w-full rounded-lg object-contain"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 /** Muvance Chat (chat.muvance.com): what the chat app and the API exchange. */
 
 export const CHAT_MESSAGE_MAX = 8000;
-export const CHAT_FILE_MAX_BYTES = 25 * 1024 * 1024;
+export const CHAT_FILE_MAX_BYTES = 100 * 1024 * 1024;
 export const CHAT_ATTACHMENTS_MAX = 10;
 
 /** "team": a @muvance.com mailbox. "guest": a client invited by the team. */
@@ -68,6 +68,8 @@ export const chatSendSchema = z
     text: z.string().max(CHAT_MESSAGE_MAX, 'That message is too long').default(''),
     threadId: objectId.nullable().default(null),
     attachmentIds: z.array(objectId).max(CHAT_ATTACHMENTS_MAX).default([]),
+    /** "Quote in reply": the message this one answers, shown above it. */
+    quoteId: objectId.nullable().default(null),
   })
   .refine((m) => m.text.trim() || m.attachmentIds.length, { message: 'Write a message' });
 
@@ -76,6 +78,35 @@ export const chatEditSchema = z.object({
 });
 
 export const chatReactSchema = z.object({ emoji: z.string().min(1).max(16) });
+
+export const chatForwardSchema = z.object({
+  spaceIds: z.array(objectId).min(1, 'Choose a conversation').max(10),
+});
+
+export const chatPinSchema = z.object({ pinned: z.boolean() });
+
+export const chatSaveSchema = z.object({ saved: z.boolean() });
+
+export const chatMarkUnreadSchema = z.object({ messageId: objectId });
+
+export const chatStatusSchema = z.object({
+  emoji: z.string().trim().max(16).default(''),
+  text: z.string().trim().max(100).default(''),
+  /** When the status clears by itself; null keeps it until changed. */
+  clearAt: z.iso.datetime().nullable().default(null),
+});
+
+export const chatDndSchema = z.object({
+  /** Pause notifications until then; null turns them back on. */
+  until: z.iso.datetime().nullable(),
+});
+
+export const chatPushSubscriptionSchema = z.object({
+  endpoint: z.url().max(1000),
+  keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
+});
+
+export const chatPushUnsubscribeSchema = z.object({ endpoint: z.url().max(1000) });
 
 export const chatTypingSchema = z.object({ threadId: objectId.nullable().default(null) });
 
@@ -90,11 +121,17 @@ export interface ChatPersonDto {
   online: boolean;
   /** Guests who haven't opened their invite yet are "invited". */
   status: 'invited' | 'active' | 'removed';
+  /** What they've set, such as "🌴 On holiday". */
+  customStatus: { emoji: string; text: string; clearAt: string | null } | null;
+  /** Notifications paused: shown to others as "Do not disturb". */
+  dnd: boolean;
 }
 
 export interface ChatMeDto extends ChatPersonDto {
   /** Team members can create spaces, invite guests and manage them. */
   canManage: boolean;
+  /** Notifications are paused until then. */
+  dndUntil: string | null;
 }
 
 export interface ChatMemberDto {
@@ -127,6 +164,27 @@ export interface ChatAttachmentDto {
   contentType: string;
   width: number | null;
   height: number | null;
+  /** Audio and video length. */
+  durationMs: number | null;
+  /** Voice messages: recorded in the app, with a loudness outline (0–100) to draw. */
+  voice: boolean;
+  waveform: number[] | null;
+}
+
+export interface ChatLinkPreviewDto {
+  url: string;
+  title: string;
+  description: string | null;
+  image: string | null;
+  siteName: string | null;
+}
+
+export interface ChatQuoteDto {
+  id: string;
+  authorId: string;
+  text: string;
+  /** What it had attached, when there's no text: "Photo", "Voice message", a file name. */
+  attachment: string | null;
 }
 
 export interface ChatReactionDto {
@@ -151,6 +209,11 @@ export interface ChatMessageDto {
   editedAt: string | null;
   deleted: boolean;
   createdAt: string;
+  quote: ChatQuoteDto | null;
+  /** Forwarded from another conversation. */
+  forwarded: boolean;
+  pinned: { byId: string; at: string } | null;
+  linkPreview: ChatLinkPreviewDto | null;
 }
 
 export interface ChatBootstrapDto {
@@ -158,6 +221,10 @@ export interface ChatBootstrapDto {
   spaces: ChatSpaceDto[];
   /** Everyone in your spaces (and, for the team, every teammate). */
   people: ChatPersonDto[];
+  /** Messages you saved (newest first). */
+  savedIds: string[];
+  /** This server's key for browser push notifications (null: not available). */
+  pushKey: string | null;
 }
 
 export interface ChatMessagePage {
@@ -165,6 +232,9 @@ export interface ChatMessagePage {
   /** More, older messages exist. */
   hasMore: boolean;
 }
+
+/** Shared in a conversation: photos and videos, other files, or links. */
+export type ChatSharedKind = 'media' | 'files' | 'links';
 
 export interface ChatThreadDto {
   root: ChatMessageDto;

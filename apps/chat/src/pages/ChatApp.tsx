@@ -1,36 +1,75 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { LogOut, MessageSquareText, Search, Settings, WifiOff, X } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router';
+import {
+  BellOff,
+  LogOut,
+  MessageSquareText,
+  Search,
+  Settings,
+  Smartphone,
+  SmilePlus,
+  WifiOff,
+  X,
+} from 'lucide-react';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api } from '@/lib/api';
 import { useChat } from '@/lib/data';
 import { useConnection, useLiveUpdates } from '@/lib/live';
+import { stopPushForSignOut, usePushSetup } from '@/lib/push';
+import { takeShared, type SharedItems } from '@/lib/share';
 import { cn } from '@/lib/utils';
 import { Avatar, IconButton, LogoMark, Menu, MenuItem } from '@/components/ui';
 import { Conversation } from '@/components/Conversation';
+import { SavedView } from '@/components/SavedView';
 import { SearchResults } from '@/components/SearchResults';
-import { SettingsDialog } from '@/components/SettingsDialog';
+import { SettingsDialog, type SettingsTab } from '@/components/SettingsDialog';
 import { Sidebar } from '@/components/Sidebar';
+import { ShareDialog } from '@/components/dialogs/ShareDialog';
+import { StatusDialog } from '@/components/dialogs/StatusDialog';
 
 export function ChatApp() {
-  const { me, spaces } = useChat();
+  const { me, spaces, pushKey } = useChat();
   const { spaceId } = useParams();
+  const location = useLocation();
+  const [params, setParams] = useSearchParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const connection = useConnection();
   const [query, setQuery] = useState('');
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<SettingsTab | null>(null);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [shared, setShared] = useState<SharedItems | null>(null);
+  const savedPage = location.pathname === '/saved';
   useLiveUpdates(me.id);
+  usePushSetup(
+    pushKey,
+    useCallback((url: string) => navigate(url), [navigate]),
+  );
 
-  // "(3) Muvance Chat" while there's something unread.
+  // Opened from "Share to Muvance Chat" on the phone.
+  useEffect(() => {
+    if (params.get('shared') !== '1') return;
+    setParams({}, { replace: true });
+    void takeShared().then((items) => items && setShared(items));
+  }, [params, setParams]);
+
+  // "(3) Muvance Chat" while there's something unread, and the count on the app's icon.
   const unread = spaces.reduce((n, s) => n + (s.muted && !s.mentioned ? 0 : s.unread), 0);
   useEffect(() => {
     document.title = unread ? `(${unread}) Muvance Chat` : 'Muvance Chat';
+    const nav = navigator as Navigator & {
+      setAppBadge?: (n?: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    if (unread) void nav.setAppBadge?.(unread).catch(() => {});
+    else void nav.clearAppBadge?.().catch(() => {});
   }, [unread]);
 
   const searching = query.trim().length >= 2;
+  const dndOn = me.dnd;
 
   const signOut = async () => {
+    await stopPushForSignOut();
     await api.post('/logout').catch(() => {});
     qc.clear();
     navigate('/', { replace: true });
@@ -49,7 +88,7 @@ export function ChatApp() {
           }}
           className={cn(
             'flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 md:w-64',
-            searching || spaceId ? 'max-md:hidden' : '',
+            searching || spaceId || savedPage ? 'max-md:hidden' : '',
           )}
         >
           <span className="inline-flex size-8 items-center justify-center rounded-lg bg-accent text-white">
@@ -87,9 +126,20 @@ export function ChatApp() {
               <span className="max-sm:hidden">Reconnecting…</span>
             </span>
           )}
+          {dndOn && (
+            <button
+              type="button"
+              onClick={() => setSettings('notifications')}
+              className="mr-1 inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700"
+              title="Notifications are paused"
+            >
+              <BellOff className="size-3.5" />
+              <span className="max-sm:hidden">Do not disturb</span>
+            </button>
+          )}
           <IconButton
             label="Settings"
-            onClick={() => setSettingsOpen(true)}
+            onClick={() => setSettings('profile')}
             className="max-sm:hidden"
           >
             <Settings />
@@ -102,7 +152,7 @@ export function ChatApp() {
                 aria-label="Your account"
                 className="rounded-full p-0.5 transition hover:ring-4 hover:ring-black/5"
               >
-                <Avatar person={me} className="size-8 text-sm" />
+                <Avatar person={{ ...me, online: true }} presence className="size-8 text-sm" />
               </button>
             )}
           >
@@ -115,12 +165,50 @@ export function ChatApp() {
                     <p className="truncate text-xs text-muted">{me.email}</p>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    setStatusOpen(true);
+                  }}
+                  className="mx-1.5 mb-1 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-lg border border-line px-3 py-2 text-left text-sm hover:bg-black/[0.03]"
+                >
+                  {me.customStatus ? (
+                    <>
+                      <span>{me.customStatus.emoji}</span>
+                      <span className="min-w-0 flex-1 truncate">{me.customStatus.text}</span>
+                    </>
+                  ) : (
+                    <>
+                      <SmilePlus className="size-4 text-muted" />
+                      <span className="text-muted">Set a status</span>
+                    </>
+                  )}
+                </button>
                 <div className="my-1 h-px bg-line" />
+                <MenuItem
+                  icon={<BellOff />}
+                  onClick={() => {
+                    close();
+                    setSettings('notifications');
+                  }}
+                >
+                  {dndOn ? 'Notifications paused' : 'Pause notifications'}
+                </MenuItem>
+                <MenuItem
+                  icon={<Smartphone />}
+                  onClick={() => {
+                    close();
+                    setSettings('app');
+                  }}
+                >
+                  Get the app
+                </MenuItem>
                 <MenuItem
                   icon={<Settings />}
                   onClick={() => {
                     close();
-                    setSettingsOpen(true);
+                    setSettings('profile');
                   }}
                 >
                   Settings
@@ -136,17 +224,22 @@ export function ChatApp() {
 
       <div className="flex min-h-0 flex-1 gap-2 px-0 pb-0 sm:px-2 sm:pb-2">
         <Sidebar
-          className={cn('w-full md:w-72 md:shrink-0', (spaceId || searching) && 'max-md:hidden')}
+          className={cn(
+            'w-full md:w-72 md:shrink-0',
+            (spaceId || searching || savedPage) && 'max-md:hidden',
+          )}
           onNavigate={() => setQuery('')}
         />
         <main
           className={cn(
             'flex min-w-0 flex-1 overflow-hidden bg-white sm:rounded-2xl sm:shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:ring-1 sm:ring-line',
-            !spaceId && !searching && 'max-md:hidden',
+            !spaceId && !searching && !savedPage && 'max-md:hidden',
           )}
         >
           {searching ? (
             <SearchResults query={query.trim()} onOpen={() => setQuery('')} />
+          ) : savedPage ? (
+            <SavedView />
           ) : spaceId ? (
             <Conversation key={spaceId} spaceId={spaceId} />
           ) : (
@@ -155,7 +248,17 @@ export function ChatApp() {
         </main>
       </div>
 
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsDialog
+        open={settings !== null}
+        initialTab={settings ?? 'profile'}
+        onClose={() => setSettings(null)}
+      />
+      <StatusDialog
+        key={String(statusOpen)}
+        open={statusOpen}
+        onClose={() => setStatusOpen(false)}
+      />
+      {shared && <ShareDialog items={shared} onClose={() => setShared(null)} />}
     </div>
   );
 }

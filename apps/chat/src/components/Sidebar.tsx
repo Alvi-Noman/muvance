@@ -1,11 +1,21 @@
-import { useState, useSyncExternalStore } from 'react';
-import { Bell, BellOff, Compass, Globe, MessageCirclePlus, Plus, Users, X } from 'lucide-react';
+import { useState } from 'react';
+import {
+  Bell,
+  BellOff,
+  Bookmark,
+  Compass,
+  Globe,
+  MessageCirclePlus,
+  Plus,
+  Users,
+  X,
+} from 'lucide-react';
 import { NavLink } from 'react-router';
 import type { ChatPersonDto, ChatSpaceDto } from '@muvance/shared';
 import { dmPartner, hasGuests, useChat } from '@/lib/data';
-import { notificationsSupported } from '@/lib/notify';
+import { enablePush, usePushState } from '@/lib/push';
 import { avatarTone, cn, initials } from '@/lib/utils';
-import { Avatar, Menu, MenuItem } from './ui';
+import { Avatar, Menu, MenuItem, StatusEmoji, useToast } from './ui';
 import { BrowseSpacesDialog, NewSpaceDialog, StartChatDialog } from './dialogs/NewDialogs';
 
 export function SpaceIcon({ name, className }: { name: string; className?: string }) {
@@ -23,22 +33,18 @@ export function SpaceIcon({ name, className }: { name: string; className?: strin
   );
 }
 
-/** Notification permission, kept in step when the person answers the browser's prompt. */
-function usePermission() {
-  return useSyncExternalStore(
-    (l) => {
-      const t = window.setInterval(l, 2000);
-      return () => window.clearInterval(t);
-    },
-    () => (notificationsSupported() ? Notification.permission : 'denied'),
-  );
-}
-
 export function Sidebar({ className, onNavigate }: { className?: string; onNavigate: () => void }) {
-  const { me, spaces, people } = useChat();
+  const { me, spaces, people, savedIds, pushKey } = useChat();
+  const toast = useToast();
   const [dialog, setDialog] = useState<'dm' | 'space' | 'browse' | null>(null);
-  const permission = usePermission();
-  const [hideBanner, setHideBanner] = useState(false);
+  const push = usePushState();
+  const [hideBanner, setHideBanner] = useState(() => {
+    try {
+      return localStorage.getItem('muvance-chat:push') === 'off';
+    } catch {
+      return false;
+    }
+  });
 
   const dms = spaces.filter((s) => s.kind === 'dm');
   const groups = spaces.filter((s) => s.kind === 'space');
@@ -98,6 +104,20 @@ export function Sidebar({ className, onNavigate }: { className?: string; onNavig
       </div>
 
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        <NavLink
+          to="/saved"
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            cn(
+              'mt-1 flex items-center gap-3 rounded-full py-2 pr-3 pl-3.5 text-sm transition',
+              isActive ? 'bg-accent-soft text-accent' : 'hover:bg-black/[0.04]',
+            )
+          }
+        >
+          <Bookmark className="size-4" />
+          <span className="flex-1">Saved</span>
+          {savedIds.size > 0 && <span className="text-xs text-muted">{savedIds.size}</span>}
+        </NavLink>
         <Section title="Direct messages" onAdd={() => setDialog('dm')} addLabel="Message someone">
           {dms.length ? (
             dms.map((s) => (
@@ -146,31 +166,39 @@ export function Sidebar({ className, onNavigate }: { className?: string; onNavig
         </Section>
       </div>
 
-      {permission === 'default' && !hideBanner && (
-        <div className="mx-3 mb-3 rounded-2xl bg-white p-3.5 text-sm ring-1 ring-line max-md:mb-4">
-          <div className="flex items-start gap-2.5">
-            <Bell className="mt-0.5 size-4 shrink-0 text-accent" />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">Get notified of new messages</p>
+      {push === 'off' &&
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'default' &&
+        !hideBanner && (
+          <div className="mx-3 mb-3 rounded-2xl bg-white p-3.5 text-sm ring-1 ring-line max-md:mb-4">
+            <div className="flex items-start gap-2.5">
+              <Bell className="mt-0.5 size-4 shrink-0 text-accent" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Get notified of new messages</p>
+                <p className="text-xs text-muted">Even when Muvance Chat is closed.</p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void enablePush(pushKey).catch(() =>
+                      toast("Couldn't turn on notifications here."),
+                    )
+                  }
+                  className="mt-1 font-medium text-accent hover:underline"
+                >
+                  Turn on notifications
+                </button>
+              </div>
               <button
                 type="button"
-                onClick={() => void Notification.requestPermission()}
-                className="mt-1 font-medium text-accent hover:underline"
+                onClick={() => setHideBanner(true)}
+                aria-label="Not now"
+                className="text-muted hover:text-ink"
               >
-                Turn on notifications
+                <X className="size-4" />
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setHideBanner(true)}
-              aria-label="Not now"
-              className="text-muted hover:text-ink"
-            >
-              <X className="size-4" />
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
       <StartChatDialog open={dialog === 'dm'} onClose={() => setDialog(null)} />
       <NewSpaceDialog open={dialog === 'space'} onClose={() => setDialog(null)} />
@@ -246,6 +274,12 @@ function SpaceLink({
       )}
       <span className={cn('min-w-0 flex-1 truncate', unread && 'font-semibold text-ink')}>
         {title}
+        {person && (
+          <>
+            {' '}
+            <StatusEmoji person={person} />
+          </>
+        )}
         {person?.kind === 'guest' && <span className="font-normal text-muted"> · Guest</span>}
       </span>
       {external && (

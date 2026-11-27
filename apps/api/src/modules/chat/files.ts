@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { ObjectId } from 'mongodb';
 import { env } from '@/config/env';
@@ -12,6 +12,10 @@ export const chatFiles = {
   async save(id: ObjectId, data: Buffer) {
     await mkdir(path.resolve(env.CHAT_FILES_DIR), { recursive: true });
     await writeFile(this.pathOf(id), data, { mode: 0o640 });
+  },
+
+  async copy(from: ObjectId, to: ObjectId) {
+    await copyFile(this.pathOf(from), this.pathOf(to));
   },
 
   async remove(ids: ObjectId[]) {
@@ -33,4 +37,7 @@ export const INLINE_TYPES = new Set([
   'audio/ogg',
   'audio/wav',
   'audio/webm',
+  'audio/aac',
+  'audio/x-m4a',
+  'video/quicktime',
 ]);

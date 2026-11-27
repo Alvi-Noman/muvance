@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ChatBootstrapDto, ChatEvent, ChatMessageDto } from '@muvance/shared';
 import { keys, patchBootstrap, patchPerson, patchSpace, upsertMessage } from './data';
-import { notifyMessage } from './notify';
+import { describeFiles, notifyMessage } from './notify';
 
 /* What's on screen ------------------------------------------------------------------------- */
 
@@ -97,7 +97,7 @@ export function useLiveUpdates(meId: string) {
       patchSpace(qc, message.spaceId, (s) => ({
         ...s,
         lastMessageAt: message.createdAt,
-        lastMessage: { authorId: message.authorId, text: message.text },
+        lastMessage: { authorId: message.authorId, text: message.text || describeFiles(message) },
         unread: fromOthers && !watching ? s.unread + 1 : s.unread,
         mentioned:
           s.mentioned ||

@@ -27,6 +27,9 @@ function Root() {
 
   useEffect(() => {
     setSignedOutHandler(() => {
+      // Only when a sign-in ends: a visitor who isn't signed in already sees the sign-in page
+      // (resetting then would ask again, get another 401, and never stop).
+      if (!qc.getQueryData(keys.bootstrap)) return;
       qc.clear();
       void qc.resetQueries({ queryKey: keys.bootstrap });
     });
@@ -57,6 +60,7 @@ function Root() {
 const router = createBrowserRouter([
   { path: '/', element: <Root /> },
   { path: '/c/:spaceId', element: <Root /> },
+  { path: '/saved', element: <Root /> },
   { path: '/join/:token', element: <JoinPage /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ]);

@@ -25,7 +25,29 @@ export function toPersonDto(user: ChatUserDoc): ChatPersonDto {
     avatarUrl: avatarUrlOf(user),
     online: hub.isOnline(user._id.toHexString()),
     status: user.status,
+    customStatus: activeStatus(user),
+    dnd: dndOn(user),
   };
+}
+
+/** Their custom status, unless it has cleared itself. */
+function activeStatus(user: ChatUserDoc) {
+  const s = user.customStatus;
+  if (!s || (!s.emoji && !s.text)) return null;
+  if (s.clearAt && s.clearAt.getTime() <= Date.now()) return null;
+  return { emoji: s.emoji, text: s.text, clearAt: iso(s.clearAt) };
+}
+
+export const dndOn = (user: Pick<ChatUserDoc, 'dndUntil'>) =>
+  Boolean(user.dndUntil && user.dndUntil.getTime() > Date.now());
+
+/** What an attachment is, in words, for previews and quotes. */
+export function describeAttachment(a: { name: string; contentType: string; voice?: boolean }) {
+  if (a.voice) return '🎤 Voice message';
+  if (a.contentType.startsWith('image/')) return '📷 Photo';
+  if (a.contentType.startsWith('video/')) return '🎬 Video';
+  if (a.contentType.startsWith('audio/')) return `🎵 ${a.name}`;
+  return `📎 ${a.name}`;
 }
 
 export function toMessageDto(doc: ChatMessageDoc): ChatMessageDto {
@@ -48,6 +70,9 @@ export function toMessageDto(doc: ChatMessageDoc): ChatMessageDto {
           contentType: a.contentType,
           width: a.width,
           height: a.height,
+          durationMs: a.durationMs ?? null,
+          voice: a.voice ?? false,
+          waveform: a.waveform ?? null,
         })),
     reactions: deleted
       ? []
@@ -58,6 +83,21 @@ export function toMessageDto(doc: ChatMessageDoc): ChatMessageDto {
     editedAt: iso(doc.editedAt),
     deleted,
     createdAt: doc.createdAt.toISOString(),
+    quote:
+      !deleted && doc.quote
+        ? {
+            id: doc.quote.id.toHexString(),
+            authorId: doc.quote.authorId.toHexString(),
+            text: doc.quote.text,
+            attachment: doc.quote.attachment,
+          }
+        : null,
+    forwarded: doc.forwarded ?? false,
+    pinned:
+      !deleted && doc.pinnedAt && doc.pinnedBy
+        ? { byId: doc.pinnedBy.toHexString(), at: doc.pinnedAt.toISOString() }
+        : null,
+    linkPreview: deleted ? null : (doc.linkPreview ?? null),
   };
 }
 
@@ -72,11 +112,15 @@ export function mentionsIn(text: string, memberIds: Set<string>) {
 
 /** Message text for previews and emails: mentions become @Name. */
 export function plainText(text: string, names: Map<string, string>) {
-  return text
-    .replace(/<@all>/g, '@all')
-    .replace(/<@([a-f\d]{24})>/g, (_m, id: string) => `@${names.get(id) ?? 'someone'}`)
-    .replace(/```/g, '')
-    .trim();
+  return (
+    text
+      .replace(/<@all>/g, '@all')
+      .replace(/<@([a-f\d]{24})>/g, (_m, id: string) => `@${names.get(id) ?? 'someone'}`)
+      .replace(/```/g, '')
+      // *bold*, _italic_, ~strike~ and `code` read as plain words.
+      .replace(/(^|[\s(])([*_~`])(\S(?:[^\n]*?\S)?)\2(?=$|[\s.,!?:;)])/g, '$1$3')
+      .trim()
+  );
 }
 
 export const chatService = {
@@ -277,7 +321,7 @@ export const chatService = {
             text:
               last.text.slice(0, 200) ||
               (last.attachments.length
-                ? `📎 ${last.attachments[0]!.name}${last.attachments.length > 1 ? ` +${last.attachments.length - 1}` : ''}`
+                ? `${describeAttachment(last.attachments[0]!)}${last.attachments.length > 1 ? ` +${last.attachments.length - 1}` : ''}`
                 : ''),
           }
         : null,
@@ -354,6 +398,7 @@ export const chatService = {
       .toArray();
     await Promise.all([
       collections.chatMessages().deleteMany({ spaceId }),
+      collections.chatSaved().deleteMany({ spaceId }),
       collections.chatMembers().deleteMany({ spaceId }),
       collections.chatSpaces().deleteOne({ _id: spaceId }),
       collections.chatFiles().deleteMany({ spaceId }),

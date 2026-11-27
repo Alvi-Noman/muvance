@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.muvance.chat",
+      "sha256_cert_fingerprints": [
+        "89:B3:D2:84:48:A3:59:FC:CD:D0:06:39:87:28:FE:C4:A7:C1:72:B7:71:64:4D:62:6E:6E:DD:50:C5:10:17:28"
+      ]
+    }
+  }
+]

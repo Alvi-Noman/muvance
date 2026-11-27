@@ -48,20 +48,32 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
+/** What the app works out about a file before sending it. */
+export interface FileMeta {
+  width?: number;
+  height?: number;
+  durationMs?: number;
+  voice?: boolean;
+  waveform?: number[];
+}
+
 /** Uploads one file to a conversation, reporting progress (0–1). */
 export function uploadFile(
   spaceId: string,
   file: File,
-  dims: { width: number; height: number } | null,
+  meta: FileMeta | null,
   onProgress: (fraction: number) => void,
   signal?: AbortSignal,
 ) {
   return new Promise<ChatAttachmentDto>((resolve, reject) => {
     const q = new URLSearchParams({ name: file.name || 'file' });
-    if (dims) {
-      q.set('width', String(dims.width));
-      q.set('height', String(dims.height));
+    if (meta?.width && meta.height) {
+      q.set('width', String(Math.round(meta.width)));
+      q.set('height', String(Math.round(meta.height)));
     }
+    if (meta?.durationMs) q.set('duration', String(Math.round(meta.durationMs)));
+    if (meta?.voice) q.set('voice', '1');
+    if (meta?.waveform?.length) q.set('waveform', meta.waveform.join(','));
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `/api/chat/spaces/${spaceId}/files?${q}`);
     xhr.withCredentials = true;
@@ -72,7 +84,7 @@ export function uploadFile(
         resolve(JSON.parse(xhr.responseText) as ChatAttachmentDto);
         return;
       }
-      let message = xhr.status === 413 ? 'That file is too large (25 MB at most).' : '';
+      let message = xhr.status === 413 ? 'That file is too large (100 MB at most).' : '';
       try {
         message ||= (JSON.parse(xhr.responseText) as ApiError).error.message;
       } catch {

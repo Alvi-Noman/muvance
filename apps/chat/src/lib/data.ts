@@ -19,6 +19,9 @@ export const keys = {
   bootstrap: ['bootstrap'] as const,
   messages: (spaceId: string) => ['messages', spaceId] as const,
   thread: (rootId: string) => ['thread', rootId] as const,
+  pins: (spaceId: string) => ['pins', spaceId] as const,
+  shared: (spaceId: string, kind: string) => ['shared', spaceId, kind] as const,
+  saved: ['saved'] as const,
 };
 
 export function useBootstrap(enabled = true) {
@@ -34,8 +37,9 @@ export function useBootstrap(enabled = true) {
 export function useChat() {
   const { data } = useBootstrap();
   const people = useMemo(() => new Map(data?.people.map((p) => [p.id, p]) ?? []), [data?.people]);
+  const savedIds = useMemo(() => new Set(data?.savedIds ?? []), [data?.savedIds]);
   if (!data) throw new Error('useChat before the chat loaded');
-  return { me: data.me, spaces: data.spaces, people };
+  return { me: data.me, spaces: data.spaces, people, savedIds, pushKey: data.pushKey };
 }
 
 export const UNKNOWN_PERSON: ChatPersonDto = {
@@ -47,6 +51,8 @@ export const UNKNOWN_PERSON: ChatPersonDto = {
   avatarUrl: null,
   online: false,
   status: 'removed',
+  customStatus: null,
+  dnd: false,
 };
 
 export function personOf(people: Map<string, ChatPersonDto>, id: string) {
@@ -94,6 +100,14 @@ export function useThread(rootId: string | null) {
   });
 }
 
+export function usePins(spaceId: string) {
+  return useQuery({
+    queryKey: keys.pins(spaceId),
+    queryFn: () => api.get<{ messages: ChatMessageDto[] }>(`/spaces/${spaceId}/pins`),
+    staleTime: 30_000,
+  });
+}
+
 /* Cache updates ------------------------------------------------------------------------------ */
 
 /** Puts a new or changed message into the conversation (or its thread), wherever it's cached. */
@@ -118,6 +132,14 @@ export function upsertMessage(qc: QueryClient, message: ChatMessageDto) {
     qc.setQueryData<ChatThreadDto>(keys.thread(message.id), (t) =>
       t ? { ...t, root: message } : t,
     );
+    // Pinned or un-pinned: the conversation's pinned list changes.
+    qc.setQueryData<{ messages: ChatMessageDto[] }>(keys.pins(message.spaceId), (d) => {
+      if (!d) return d;
+      const others = d.messages.filter((m) => m.id !== message.id);
+      return {
+        messages: message.pinned && !message.deleted ? [message, ...others] : others,
+      };
+    });
   } else {
     qc.setQueryData<ChatThreadDto>(keys.thread(message.threadId), (t) => {
       if (!t) return t;
@@ -134,6 +156,16 @@ export function upsertMessage(qc: QueryClient, message: ChatMessageDto) {
 
 export function patchBootstrap(qc: QueryClient, fn: (d: ChatBootstrapDto) => ChatBootstrapDto) {
   qc.setQueryData<ChatBootstrapDto>(keys.bootstrap, (d) => (d ? fn(d) : d));
+}
+
+export function setSaved(qc: QueryClient, id: string, saved: boolean) {
+  patchBootstrap(qc, (d) => ({
+    ...d,
+    savedIds: saved
+      ? [id, ...d.savedIds.filter((x) => x !== id)]
+      : d.savedIds.filter((x) => x !== id),
+  }));
+  void qc.invalidateQueries({ queryKey: keys.saved });
 }
 
 export function patchSpace(qc: QueryClient, id: string, fn: (s: ChatSpaceDto) => ChatSpaceDto) {

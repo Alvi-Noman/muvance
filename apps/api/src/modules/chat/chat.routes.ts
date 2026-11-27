@@ -7,7 +7,15 @@ import {
   chatAddMembersSchema,
   chatChangePasswordSchema,
   chatCreateSpaceSchema,
+  chatDndSchema,
   chatEditSchema,
+  chatForwardSchema,
+  chatMarkUnreadSchema,
+  chatPinSchema,
+  chatPushSubscriptionSchema,
+  chatPushUnsubscribeSchema,
+  chatSaveSchema,
+  chatStatusSchema,
   chatInviteGuestSchema,
   chatLoginSchema,
   chatMemberRoleSchema,
@@ -27,6 +35,7 @@ import {
   type ChatMeDto,
   type ChatMessageDto,
   type ChatMessagePage,
+  type ChatSharedKind,
   type ChatThreadDto,
 } from '@muvance/shared';
 import { env, isTest } from '@/config/env';
@@ -47,8 +56,18 @@ import { validateBody } from '@/middlewares/validate';
 import { decodeAvatar, mailService } from '@/modules/mail/mail.service';
 import { sendAvatar } from '@/modules/mail/send-avatar';
 import { HttpError } from '@/utils/http-error';
-import { chatService, isTeamEmail, mentionsIn, toMessageDto, toPersonDto } from './chat.service';
+import {
+  chatService,
+  describeAttachment,
+  isTeamEmail,
+  mentionsIn,
+  plainText,
+  toMessageDto,
+  toPersonDto,
+} from './chat.service';
 import { chatFiles, INLINE_TYPES } from './files';
+import { firstLink, linkPreviews } from './previews';
+import { chatPush } from './push';
 import { hub } from './hub';
 import { chatEmail, chatMailer } from './mailer';
 import { chatSession, chatSessions, requireChatSession } from './session';
@@ -79,7 +98,11 @@ function requireTeam(req: Request) {
 }
 
 function meDto(user: ChatUserDoc): ChatMeDto {
-  return { ...toPersonDto(user), canManage: user.kind === 'team' };
+  return {
+    ...toPersonDto(user),
+    canManage: user.kind === 'team',
+    dndUntil: user.dndUntil && user.dndUntil.getTime() > Date.now() ? iso(user.dndUntil) : null,
+  };
 }
 
 async function announcePerson(user: ChatUserDoc) {
@@ -133,6 +156,33 @@ async function broadcastMessage(message: ChatMessageDoc) {
     type: 'message',
     message: toMessageDto(message),
   });
+}
+
+/** Link previews are fetched after sending (and not in tests, which have no internet). */
+const previewsOn = () => !isTest || process.env.CHAT_TEST_PREVIEWS === '1';
+
+/** Adds the preview of the message's first link, once it's fetched, and tells everyone. */
+async function attachPreview(message: ChatMessageDoc) {
+  const link = firstLink(message.text);
+  const current = message.linkPreview?.url ?? null;
+  if (link === current) return;
+  const preview = link ? await linkPreviews.get(link) : null;
+  const updated = await collections
+    .chatMessages()
+    .findOneAndUpdate(
+      { _id: message._id, deletedAt: null },
+      { $set: { linkPreview: preview } },
+      { returnDocument: 'after' },
+    );
+  if (updated && (preview || current)) await broadcastMessage(updated);
+}
+
+async function namesFor(ids: ObjectId[]) {
+  const people = await collections
+    .chatUsers()
+    .find({ _id: { $in: ids } }, { projection: { name: 1 } })
+    .toArray();
+  return new Map(people.map((p) => [p._id.toHexString(), p.name]));
 }
 
 // --- Signing in --------------------------------------------------------------------------
@@ -248,10 +298,21 @@ chatRouter.get('/bootstrap', async (req, res) => {
     chatService.spacesFor(user._id),
     chatService.visiblePeople(user),
   ]);
+  const [saved, pushKey] = await Promise.all([
+    collections
+      .chatSaved()
+      .find({ userId: user._id }, { projection: { messageId: 1 } })
+      .sort({ createdAt: -1 })
+      .limit(1000)
+      .toArray(),
+    chatPush.publicKey(),
+  ]);
   const body: ChatBootstrapDto = {
     me: meDto(user),
     spaces,
     people: people.map(toPersonDto),
+    savedIds: saved.map((s) => s.messageId.toHexString()),
+    pushKey,
   };
   res.json(body);
 });
@@ -332,6 +393,49 @@ chatRouter.put('/me/avatar', validateBody(mailAvatarSchema), async (req, res) =>
 
 chatRouter.delete('/me/avatar', async (req, res) => {
   res.json(await setAvatar(req, null));
+});
+
+chatRouter.put('/me/status', validateBody(chatStatusSchema), async (req, res) => {
+  const { emoji, text, clearAt } = req.body as {
+    emoji: string;
+    text: string;
+    clearAt: string | null;
+  };
+  const customStatus =
+    emoji || text ? { emoji, text, clearAt: clearAt ? new Date(clearAt) : null } : null;
+  const updated = await collections
+    .chatUsers()
+    .findOneAndUpdate(
+      { _id: meId(req) },
+      { $set: { customStatus, updatedAt: new Date() } },
+      { returnDocument: 'after' },
+    );
+  await announcePerson(updated!);
+  res.json(meDto(updated!));
+});
+
+chatRouter.put('/me/dnd', validateBody(chatDndSchema), async (req, res) => {
+  const until = req.body.until ? new Date(req.body.until as string) : null;
+  const updated = await collections
+    .chatUsers()
+    .findOneAndUpdate(
+      { _id: meId(req) },
+      { $set: { dndUntil: until, updatedAt: new Date() } },
+      { returnDocument: 'after' },
+    );
+  await announcePerson(updated!);
+  res.json(meDto(updated!));
+});
+
+chatRouter.post('/push/subscribe', validateBody(chatPushSubscriptionSchema), async (req, res) => {
+  await chatPush.subscribe(meId(req), req.body);
+  res.status(204).end();
+});
+
+// A POST, so the address doesn't end up in access logs as part of a URL.
+chatRouter.post('/push/unsubscribe', validateBody(chatPushUnsubscribeSchema), async (req, res) => {
+  await chatPush.unsubscribe(meId(req), req.body.endpoint as string);
+  res.status(204).end();
 });
 
 chatRouter.get('/avatars/:id', async (req, res) => {
@@ -695,6 +799,22 @@ chatRouter.put('/spaces/:id/read', async (req, res) => {
   res.status(204).end();
 });
 
+/** "Mark as unread": the conversation counts as unread again from this message on. */
+chatRouter.put('/spaces/:id/unread', validateBody(chatMarkUnreadSchema), async (req, res) => {
+  const user = me(req);
+  const { space } = await chatService.requireMember(String(req.params.id), user._id);
+  const message = await collections
+    .chatMessages()
+    .findOne({ _id: new ObjectId(req.body.messageId as string), spaceId: space._id });
+  if (!message) throw HttpError.notFound('Message not found');
+  const lastReadAt = new Date(message.createdAt.getTime() - 1);
+  await collections
+    .chatMembers()
+    .updateOne({ spaceId: space._id, userId: user._id }, { $set: { lastReadAt } });
+  hub.send([user._id.toHexString()], { type: 'spaces' });
+  res.json(await chatService.spaceDto(space, user._id));
+});
+
 chatRouter.put('/spaces/:id/mute', validateBody(chatMuteSchema), async (req, res) => {
   const { space } = await chatService.requireMember(String(req.params.id), meId(req));
   await collections
@@ -758,7 +878,26 @@ chatRouter.get('/messages/:id/thread', async (req, res) => {
 chatRouter.post('/spaces/:id/messages', validateBody(chatSendSchema), async (req, res) => {
   const user = me(req);
   const { space } = await chatService.requireMember(String(req.params.id), user._id);
-  const input = req.body as { text: string; threadId: string | null; attachmentIds: string[] };
+  const input = req.body as {
+    text: string;
+    threadId: string | null;
+    attachmentIds: string[];
+    quoteId: string | null;
+  };
+
+  let quote: ChatMessageDoc['quote'] = null;
+  if (input.quoteId) {
+    const quoted = await collections
+      .chatMessages()
+      .findOne({ _id: new ObjectId(input.quoteId), spaceId: space._id, deletedAt: null });
+    if (!quoted) throw HttpError.badRequest('The message you quoted was deleted.');
+    quote = {
+      id: quoted._id,
+      authorId: quoted.authorId,
+      text: quoted.text.slice(0, 500),
+      attachment: quoted.attachments[0] ? describeAttachment(quoted.attachments[0]) : null,
+    };
+  }
 
   let root: ChatMessageDoc | null = null;
   if (input.threadId) {
@@ -799,6 +938,9 @@ chatRouter.post('/spaces/:id/messages', validateBody(chatSendSchema), async (req
         contentType: f.contentType,
         width: f.width,
         height: f.height,
+        durationMs: f.durationMs ?? null,
+        voice: f.voice ?? false,
+        waveform: f.waveform ?? null,
       };
     }),
     reactions: [],
@@ -806,6 +948,11 @@ chatRouter.post('/spaces/:id/messages', validateBody(chatSendSchema), async (req
     editedAt: null,
     deletedAt: null,
     createdAt: now,
+    quote,
+    forwarded: false,
+    pinnedAt: null,
+    pinnedBy: null,
+    linkPreview: null,
   };
   await collections.chatMessages().insertOne(message);
   if (files.length) {
@@ -866,6 +1013,9 @@ chatRouter.post('/spaces/:id/messages', validateBody(chatSendSchema), async (req
     }
   }
 
+  void chatPush.notify(message, space, user);
+  if (previewsOn()) void attachPreview(message).catch(() => {});
+
   const dto: ChatMessageDto = toMessageDto(message);
   res.status(201).json(dto);
 });
@@ -889,6 +1039,7 @@ chatRouter.patch('/messages/:id', validateBody(chatEditSchema), async (req, res)
     { returnDocument: 'after' },
   );
   await broadcastMessage(updated!);
+  if (previewsOn()) void attachPreview(updated!).catch(() => {});
   res.json(toMessageDto(updated!));
 });
 
@@ -898,19 +1049,186 @@ chatRouter.delete('/messages/:id', async (req, res) => {
   const manager = space.kind === 'space' && member.role === 'manager' && me(req).kind === 'team';
   if (!own && !manager) throw HttpError.forbidden('You can only delete your own messages.');
   const fileIds = message.attachments.map((a) => a.id);
-  const updated = await collections
-    .chatMessages()
-    .findOneAndUpdate(
-      { _id: message._id },
-      { $set: { deletedAt: new Date(), text: '', attachments: [], reactions: [], mentions: [] } },
-      { returnDocument: 'after' },
-    );
+  const updated = await collections.chatMessages().findOneAndUpdate(
+    { _id: message._id },
+    {
+      $set: {
+        deletedAt: new Date(),
+        text: '',
+        attachments: [],
+        reactions: [],
+        mentions: [],
+        quote: null,
+        linkPreview: null,
+        pinnedAt: null,
+        pinnedBy: null,
+      },
+    },
+    { returnDocument: 'after' },
+  );
   if (fileIds.length) {
     await collections.chatFiles().deleteMany({ _id: { $in: fileIds } });
     await chatFiles.remove(fileIds);
   }
+  await collections.chatSaved().deleteMany({ messageId: message._id });
   await broadcastMessage(updated!);
   res.status(204).end();
+});
+
+/** Pinned messages stay at hand for everyone in the conversation. */
+chatRouter.put('/messages/:id/pin', validateBody(chatPinSchema), async (req, res) => {
+  const { message, space } = await findMessage(String(req.params.id), meId(req));
+  if (message.deletedAt) throw HttpError.badRequest('That message was deleted.');
+  if (message.threadId) throw HttpError.badRequest('Pin messages from the main conversation.');
+  const pinned = req.body.pinned as boolean;
+  if (pinned && !message.pinnedAt) {
+    const count = await collections
+      .chatMessages()
+      .countDocuments({ spaceId: space._id, pinnedAt: { $ne: null } });
+    if (count >= 50) throw HttpError.badRequest('Up to 50 pinned messages. Unpin one first.');
+  }
+  const updated = await collections.chatMessages().findOneAndUpdate(
+    { _id: message._id },
+    {
+      $set: pinned
+        ? { pinnedAt: message.pinnedAt ?? new Date(), pinnedBy: message.pinnedBy ?? meId(req) }
+        : { pinnedAt: null, pinnedBy: null },
+    },
+    { returnDocument: 'after' },
+  );
+  await broadcastMessage(updated!);
+  res.json(toMessageDto(updated!));
+});
+
+chatRouter.get('/spaces/:id/pins', async (req, res) => {
+  const { space } = await chatService.requireMember(String(req.params.id), meId(req));
+  const docs = await collections
+    .chatMessages()
+    .find({ spaceId: space._id, pinnedAt: { $ne: null }, deletedAt: null })
+    .sort({ pinnedAt: -1 })
+    .limit(50)
+    .toArray();
+  res.json({ messages: docs.map(toMessageDto) });
+});
+
+/** Saved messages: your own list, like bookmarks. */
+chatRouter.put('/messages/:id/save', validateBody(chatSaveSchema), async (req, res) => {
+  const { message, space } = await findMessage(String(req.params.id), meId(req));
+  if (req.body.saved) {
+    if (message.deletedAt) throw HttpError.badRequest('That message was deleted.');
+    await collections.chatSaved().updateOne(
+      { userId: meId(req), messageId: message._id },
+      {
+        $setOnInsert: {
+          _id: new ObjectId(),
+          userId: meId(req),
+          messageId: message._id,
+          spaceId: space._id,
+          createdAt: new Date(),
+        },
+      },
+      { upsert: true },
+    );
+  } else {
+    await collections.chatSaved().deleteOne({ userId: meId(req), messageId: message._id });
+  }
+  res.status(204).end();
+});
+
+chatRouter.get('/saved', async (req, res) => {
+  const mine = await collections
+    .chatMembers()
+    .find({ userId: meId(req) }, { projection: { spaceId: 1 } })
+    .toArray();
+  const saved = await collections
+    .chatSaved()
+    .find({ userId: meId(req), spaceId: { $in: mine.map((m) => m.spaceId) } })
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .toArray();
+  const docs = await collections
+    .chatMessages()
+    .find({ _id: { $in: saved.map((s) => s.messageId) }, deletedAt: null })
+    .toArray();
+  const byId = new Map(docs.map((d) => [d._id.toHexString(), d]));
+  res.json({
+    messages: saved.flatMap((s) => {
+      const d = byId.get(s.messageId.toHexString());
+      return d ? [toMessageDto(d)] : [];
+    }),
+  });
+});
+
+/** Sends a copy of a message (with its files) to other conversations. */
+chatRouter.post('/messages/:id/forward', validateBody(chatForwardSchema), async (req, res) => {
+  const user = me(req);
+  const { message } = await findMessage(String(req.params.id), user._id);
+  if (message.deletedAt) throw HttpError.badRequest('That message was deleted.');
+  const targets: ChatSpaceDoc[] = [];
+  for (const id of new Set(req.body.spaceIds as string[])) {
+    targets.push((await chatService.requireMember(id, user._id)).space);
+  }
+  // Mentions only work inside their own conversation: elsewhere they become plain names.
+  const ids = [...message.text.matchAll(/<@([a-f\d]{24})>/g)].map((m) => new ObjectId(m[1]));
+  const text = plainText(message.text, await namesFor(ids));
+  const sent: ChatMessageDto[] = [];
+  for (const space of targets) {
+    const now = new Date();
+    const copyId = new ObjectId();
+    const attachments: ChatMessageDoc['attachments'] = [];
+    for (const a of message.attachments) {
+      const fileId = new ObjectId();
+      await chatFiles.copy(a.id, fileId);
+      await collections.chatFiles().insertOne({
+        _id: fileId,
+        spaceId: space._id,
+        uploaderId: user._id,
+        name: a.name,
+        size: a.size,
+        contentType: a.contentType,
+        width: a.width,
+        height: a.height,
+        durationMs: a.durationMs ?? null,
+        voice: a.voice ?? false,
+        waveform: a.waveform ?? null,
+        messageId: copyId,
+        createdAt: now,
+      });
+      attachments.push({ ...a, id: fileId });
+    }
+    const copy: ChatMessageDoc = {
+      _id: copyId,
+      spaceId: space._id,
+      authorId: user._id,
+      text,
+      threadId: null,
+      replyCount: 0,
+      lastReplyAt: null,
+      replierIds: [],
+      attachments,
+      reactions: [],
+      mentions: [],
+      editedAt: null,
+      deletedAt: null,
+      createdAt: now,
+      quote: null,
+      forwarded: true,
+      pinnedAt: null,
+      pinnedBy: null,
+      linkPreview: message.linkPreview ?? null,
+    };
+    await collections.chatMessages().insertOne(copy);
+    await collections
+      .chatSpaces()
+      .updateOne({ _id: space._id }, { $set: { lastMessageAt: now, updatedAt: now } });
+    await collections
+      .chatMembers()
+      .updateOne({ spaceId: space._id, userId: user._id }, { $set: { lastReadAt: now } });
+    await broadcastMessage(copy);
+    void chatPush.notify(copy, space, user);
+    sent.push(toMessageDto(copy));
+  }
+  res.status(201).json({ messages: sent });
 });
 
 chatRouter.put('/messages/:id/reactions', validateBody(chatReactSchema), async (req, res) => {
@@ -963,6 +1281,14 @@ chatRouter.post(
       const n = Number(v);
       return Number.isInteger(n) && n > 0 && n < 100_000 ? n : null;
     };
+    const durationMs = Number(req.query.duration);
+    const waveform = String(req.query.waveform ?? '')
+      .split(',')
+      .filter(Boolean)
+      .slice(0, 64)
+      .map((v) => Math.max(0, Math.min(100, Math.round(Number(v)) || 0)));
+    const media = /^(audio|video)\//.test(contentType);
+    const voice = req.query.voice === '1' && contentType.startsWith('audio/');
     const id = new ObjectId();
     await chatFiles.save(id, data);
     const doc = {
@@ -974,6 +1300,12 @@ chatRouter.post(
       contentType,
       width: dim(req.query.width),
       height: dim(req.query.height),
+      durationMs:
+        media && Number.isFinite(durationMs) && durationMs > 0 && durationMs < 86_400_000
+          ? Math.round(durationMs)
+          : null,
+      voice,
+      waveform: voice && waveform.length ? waveform : null,
       messageId: null,
       createdAt: new Date(),
     };
@@ -985,6 +1317,9 @@ chatRouter.post(
       contentType,
       width: doc.width,
       height: doc.height,
+      durationMs: doc.durationMs,
+      voice: doc.voice,
+      waveform: doc.waveform,
     });
   },
 );
@@ -1007,6 +1342,37 @@ chatRouter.get('/files/:id', async (req, res) => {
   res.sendFile(chatFiles.pathOf(file._id), { dotfiles: 'allow' }, (error) => {
     if (error && !res.headersSent) res.status(404).json({ error: { message: 'File not found' } });
   });
+});
+
+/** What was shared in a conversation: photos and videos, other files, or links. Newest first. */
+chatRouter.get('/spaces/:id/shared', async (req, res) => {
+  const { space } = await chatService.requireMember(String(req.params.id), meId(req));
+  const kind = String(req.query.kind ?? 'media') as ChatSharedKind;
+  const before = typeof req.query.before === 'string' ? req.query.before : null;
+  const filter: Record<string, unknown> = { spaceId: space._id, deletedAt: null };
+  if (before) filter._id = { $lt: toObjectId(before, 'Message') };
+  if (kind === 'media') {
+    filter['attachments.contentType'] = { $regex: '^(image|video)/' };
+  } else if (kind === 'files') {
+    filter.attachments = {
+      $elemMatch: { contentType: { $not: /^(image|video)\// }, voice: { $ne: true } },
+    };
+  } else if (kind === 'links') {
+    filter.text = { $regex: 'https?://', $options: 'i' };
+  } else {
+    throw HttpError.badRequest('Unknown kind');
+  }
+  const docs = await collections
+    .chatMessages()
+    .find(filter)
+    .sort({ _id: -1 })
+    .limit(PAGE_SIZE + 1)
+    .toArray();
+  const body: ChatMessagePage = {
+    messages: docs.slice(0, PAGE_SIZE).map(toMessageDto),
+    hasMore: docs.length > PAGE_SIZE,
+  };
+  res.json(body);
 });
 
 // --- Search --------------------------------------------------------------------------------

@@ -48,7 +48,7 @@ export function Avatar({
   className,
   presence,
 }: {
-  person: Pick<ChatPersonDto, 'id' | 'name' | 'avatarUrl' | 'online'>;
+  person: Pick<ChatPersonDto, 'id' | 'name' | 'avatarUrl' | 'online'> & { dnd?: boolean };
   className?: string;
   /** Show a green dot when they're online. */
   presence?: boolean;
@@ -77,11 +77,30 @@ export function Avatar({
         <span
           className={cn(
             'absolute -right-0.5 -bottom-0.5 size-[38%] max-h-3.5 max-w-3.5 min-h-2.5 min-w-2.5 rounded-full border-2 border-white',
-            person.online ? 'bg-emerald-500' : 'bg-neutral-300',
+            person.online && person.dnd
+              ? 'bg-red-500'
+              : person.online
+                ? 'bg-emerald-500'
+                : 'bg-neutral-300',
           )}
-          title={person.online ? 'Online' : 'Away'}
+          title={person.online ? (person.dnd ? 'Do not disturb' : 'Online') : 'Away'}
         />
       )}
+    </span>
+  );
+}
+
+/** Someone's status emoji, with the status as its tooltip. */
+export function StatusEmoji({ person }: { person: ChatPersonDto }) {
+  const s = person.customStatus;
+  if (!s?.emoji) return null;
+  return (
+    <span
+      className="text-sm leading-none"
+      title={s.text || undefined}
+      aria-label={s.text || undefined}
+    >
+      {s.emoji}
     </span>
   );
 }

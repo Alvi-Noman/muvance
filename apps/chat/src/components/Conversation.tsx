@@ -5,9 +5,11 @@ import {
   Bell,
   BellOff,
   Globe,
+  Images,
   Info,
   LogOut,
   MoreVertical,
+  Pin,
   Upload,
   UserPlus,
   Users,
@@ -25,12 +27,16 @@ import {
   spaceTitle,
   useChat,
   useMessages,
+  usePins,
   useThread,
 } from '@/lib/data';
+import { plainText } from '@/lib/format';
+import { describeFiles } from '@/lib/notify';
 import { isWatching, useTyping, view } from '@/lib/live';
 import { cn, dayLabel, firstName, sameDay } from '@/lib/utils';
 import { Composer, type ComposerHandle } from './Composer';
-import { MessageItem } from './Message';
+import { MessageItem, scrollToMessage } from './Message';
+import { SharedPanel, type PanelTab } from './SharedPanel';
 import { SpaceIcon } from './Sidebar';
 import { SpaceDialog } from './dialogs/SpaceDialog';
 import { Avatar, Badge, IconButton, Menu, MenuItem, Spinner, useToast } from './ui';
@@ -90,6 +96,9 @@ export function Conversation({ spaceId }: { spaceId: string }) {
   const composer = useRef<ComposerHandle>(null);
   const [dragging, setDragging] = useState(false);
   const [dialog, setDialog] = useState<'members' | 'settings' | null>(null);
+  const [panel, setPanel] = useState<PanelTab | null>(null);
+  const [quote, setQuote] = useState<ChatMessageDto | null>(null);
+  const onQuote = useCallback((m: ChatMessageDto) => setQuote(m), []);
 
   useEffect(() => {
     view.spaceId = spaceId;
@@ -120,8 +129,10 @@ export function Conversation({ spaceId }: { spaceId: string }) {
   }
 
   const openThread = (id: string | null) => {
+    if (id) setPanel(null);
     setParams(id ? { thread: id } : {}, { replace: Boolean(threadId) });
   };
+  const side = threadId ? 'thread' : panel ? 'panel' : null;
 
   return (
     <div
@@ -141,9 +152,23 @@ export function Conversation({ spaceId }: { spaceId: string }) {
         composer.current?.addFiles([...e.dataTransfer.files]);
       }}
     >
-      <section className={cn('flex min-w-0 flex-1 flex-col', threadId && 'max-lg:hidden')}>
-        <Header space={space} onOpen={setDialog} />
-        <MessageList space={space} onOpenThread={openThread} highlightThread={threadId} />
+      <section className={cn('flex min-w-0 flex-1 flex-col', side && 'max-lg:hidden')}>
+        <Header
+          space={space}
+          onOpen={setDialog}
+          panelOpen={Boolean(panel)}
+          onPanel={() => {
+            if (threadId) openThread(null);
+            setPanel((p) => (p ? null : 'media'));
+          }}
+        />
+        <PinnedBar space={space} onOpen={() => setPanel('pins')} />
+        <MessageList
+          space={space}
+          onOpenThread={openThread}
+          onQuote={onQuote}
+          highlightThread={threadId}
+        />
         <div className="shrink-0 px-3 pb-3 sm:px-5 sm:pb-4">
           <TypingLine spaceId={space.id} threadId={null} />
           <Composer
@@ -153,6 +178,8 @@ export function Conversation({ spaceId }: { spaceId: string }) {
             threadId={null}
             members={members}
             allowAll={space.kind === 'space'}
+            quote={quote}
+            onClearQuote={() => setQuote(null)}
             autoFocus={!window.matchMedia('(hover: none)').matches}
             placeholder={
               space.kind === 'dm'
@@ -172,6 +199,9 @@ export function Conversation({ spaceId }: { spaceId: string }) {
           onClose={() => openThread(null)}
         />
       )}
+      {!threadId && panel && (
+        <SharedPanel space={space} tab={panel} onTab={setPanel} onClose={() => setPanel(null)} />
+      )}
 
       {dragging && (
         <div className="pointer-events-none absolute inset-2 z-30 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-accent-soft/90 text-accent">
@@ -185,12 +215,56 @@ export function Conversation({ spaceId }: { spaceId: string }) {
   );
 }
 
+/** The latest pinned message, at the top of the conversation (like Google Chat and WhatsApp). */
+function PinnedBar({ space, onOpen }: { space: ChatSpaceDto; onOpen: () => void }) {
+  const { people } = useChat();
+  const { data } = usePins(space.id);
+  const pins = data?.messages ?? [];
+  const [index, setIndex] = useState(0);
+  if (!pins.length) return null;
+  const shown = pins[Math.min(index, pins.length - 1)]!;
+  const names = new Map([...people].map(([id, p]) => [id, p.name]));
+  return (
+    <div className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-amber-50/60 px-4 sm:px-5">
+      <Pin className="size-4 shrink-0 text-amber-700" />
+      <button
+        type="button"
+        onClick={() => {
+          scrollToMessage(shown.id);
+          setIndex((i) => (i + 1) % pins.length);
+        }}
+        className="min-w-0 flex-1 text-left"
+        title="Show this message"
+      >
+        <span className="block text-[11px] font-semibold text-amber-800">
+          {pins.length > 1 ? `Pinned message ${index + 1} of ${pins.length}` : 'Pinned message'}
+        </span>
+        <span className="block truncate text-sm">
+          <span className="font-medium">{personOf(people, shown.authorId).name}:</span>{' '}
+          {plainText(shown.text, names) || describeFiles(shown)}
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100"
+      >
+        View all
+      </button>
+    </div>
+  );
+}
+
 function Header({
   space,
   onOpen,
+  panelOpen,
+  onPanel,
 }: {
   space: ChatSpaceDto;
   onOpen: (tab: 'members' | 'settings') => void;
+  panelOpen: boolean;
+  onPanel: () => void;
 }) {
   const { me, people } = useChat();
   const qc = useQueryClient();
@@ -256,16 +330,23 @@ function Header({
           </span>
           <span className="block truncate text-xs text-muted">
             {partner
-              ? partner.online
-                ? 'Active now'
-                : partner.kind === 'guest'
-                  ? [partner.company, partner.email].filter(Boolean).join(' · ')
-                  : partner.email
+              ? partner.customStatus
+                ? `${partner.customStatus.emoji} ${partner.customStatus.text}`.trim()
+                : partner.online && partner.dnd
+                  ? 'Do not disturb'
+                  : partner.online
+                    ? 'Active now'
+                    : partner.kind === 'guest'
+                      ? [partner.company, partner.email].filter(Boolean).join(' · ')
+                      : partner.email
               : `${space.members.length} ${space.members.length === 1 ? 'member' : 'members'}${space.description ? ` · ${space.description}` : ''}`}
           </span>
         </span>
       </button>
       <div className="ml-auto flex items-center gap-0.5">
+        <IconButton label="Shared media, files and pins" onClick={onPanel} active={panelOpen}>
+          <Images />
+        </IconButton>
         {space.kind === 'space' && (
           <>
             {me.canManage && (
@@ -347,10 +428,12 @@ function TypingLine({ spaceId, threadId }: { spaceId: string; threadId: string |
 function MessageList({
   space,
   onOpenThread,
+  onQuote,
   highlightThread,
 }: {
   space: ChatSpaceDto;
   onOpenThread: (id: string) => void;
+  onQuote: (m: ChatMessageDto) => void;
   highlightThread: string | null;
 }) {
   const { me, people } = useChat();
@@ -467,6 +550,7 @@ function MessageList({
                     grouped={!newDay && m.id !== firstNew && continues(prev, m)}
                     space={space}
                     onOpenThread={onOpenThread}
+                    onQuote={onQuote}
                     highlight={m.id === highlightThread}
                   />
                   {seen && m.id === lastMine?.id && (
@@ -529,6 +613,7 @@ function ThreadPanel({
 }) {
   const { data, isLoading, error } = useThread(rootId);
   const scroller = useRef<HTMLDivElement>(null);
+  const [quote, setQuote] = useState<ChatMessageDto | null>(null);
   const count = data?.replies.length ?? 0;
 
   useEffect(() => {
@@ -579,6 +664,7 @@ function ThreadPanel({
                 message={m}
                 grouped={continues(data.replies[i - 1], m)}
                 space={space}
+                onQuote={setQuote}
                 inThread
               />
             ))}
@@ -593,6 +679,8 @@ function ThreadPanel({
             threadId={rootId}
             members={members}
             allowAll={false}
+            quote={quote}
+            onClearQuote={() => setQuote(null)}
             autoFocus
             placeholder="Reply in thread"
           />

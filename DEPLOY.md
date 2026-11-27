@@ -163,8 +163,16 @@ the team and clients: spaces (group conversations), direct messages, threads, re
 - **Email alerts:** a guest with messages from the team still unread after 10 minutes
   (`CHAT_EMAIL_ALERT_MINUTES`) gets one email, from the teammate who wrote, and no more until they
   open chat again.
-- **Files** (25 MB each) are stored in `/opt/muvance/chat-files`. Files attached but never sent are
-  deleted after a day. Back the folder up if the files matter.
+- **Files** (photos, videos, voice messages and other files, 100 MB each) are stored in
+  `/opt/muvance/chat-files`. Files attached but never sent are deleted after a day. Back the folder
+  up if the files matter. Everything else (messages, pins, saved messages, statuses) is in MongoDB.
+- **Push notifications** use standard Web Push. The API makes its keys on first use and keeps them
+  in MongoDB (`chatConfig`), so there's nothing to set up. Each browser or phone that turns
+  notifications on is in `chatPushSubscriptions`.
+- **Link previews:** the API fetches the first link in a message (never a private address) and
+  keeps previews for a week.
+- **Android app** (`apps/chat-app`): opens the site full screen; Android trusts it through
+  `apps/chat/public/.well-known/assetlinks.json`. Download at `/downloads/muvance-chat.apk`.
 - **DNS:** A `chat` → server IP. Caddy gets the certificate on its own once the record exists.
 
 ## Team email (mail.muvance.com)

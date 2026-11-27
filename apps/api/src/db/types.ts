@@ -343,6 +343,9 @@ export interface ChatUserDoc {
   lastSeenAt: Date | null;
   /** Guests: when we last emailed them about unread messages. */
   emailNotifiedAt: Date | null;
+  customStatus?: { emoji: string; text: string; clearAt: Date | null } | null;
+  /** Notifications paused until then. */
+  dndUntil?: Date | null;
 }
 
 export interface ChatSessionDoc {
@@ -410,6 +413,9 @@ export interface ChatMessageDoc {
     contentType: string;
     width: number | null;
     height: number | null;
+    durationMs?: number | null;
+    voice?: boolean;
+    waveform?: number[] | null;
   }[];
   reactions: { emoji: string; userIds: ObjectId[] }[];
   /** People mentioned by id, plus "all" for <@all>. */
@@ -417,6 +423,18 @@ export interface ChatMessageDoc {
   editedAt: Date | null;
   deletedAt: Date | null;
   createdAt: Date;
+  /** A snapshot of the message this one quotes. */
+  quote?: { id: ObjectId; authorId: ObjectId; text: string; attachment: string | null } | null;
+  forwarded?: boolean;
+  pinnedAt?: Date | null;
+  pinnedBy?: ObjectId | null;
+  linkPreview?: {
+    url: string;
+    title: string;
+    description: string | null;
+    image: string | null;
+    siteName: string | null;
+  } | null;
 }
 
 /** A file shared in chat, stored on disk at CHAT_FILES_DIR/<id>. */
@@ -429,6 +447,9 @@ export interface ChatFileDoc {
   contentType: string;
   width: number | null;
   height: number | null;
+  durationMs?: number | null;
+  voice?: boolean;
+  waveform?: number[] | null;
   /** Set when it's sent in a message; files never sent are deleted after a day. */
   messageId: ObjectId | null;
   createdAt: Date;
@@ -442,4 +463,43 @@ export interface ChatEmailAlertDoc {
   authorId: ObjectId;
   queuedAt: Date;
   dueAt: Date;
+}
+
+/** A message someone saved for later (one per person and message). */
+export interface ChatSavedDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  messageId: ObjectId;
+  spaceId: ObjectId;
+  createdAt: Date;
+}
+
+/** A browser (or the Android app) that receives push notifications for someone. */
+export interface ChatPushSubscriptionDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** A link's preview, kept for a week so the same link isn't fetched again and again. */
+export interface ChatLinkPreviewCacheDoc {
+  _id: string; // the URL
+  preview: {
+    url: string;
+    title: string;
+    description: string | null;
+    image: string | null;
+    siteName: string | null;
+  } | null;
+  fetchedAt: Date;
+}
+
+/** Settings chat makes for itself, such as its push notification keys. */
+export interface ChatConfigDoc {
+  _id: string;
+  value: Record<string, string>;
+  createdAt: Date;
 }

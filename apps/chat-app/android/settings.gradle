@@ -1,0 +1,2 @@
+rootProject.name = 'muvance-chat'
+include ':app'

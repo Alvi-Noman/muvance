@@ -6,7 +6,11 @@ import type {
   ActivityDoc,
   ApplicationDoc,
   CallRecordingDoc,
+  ChatConfigDoc,
   ChatEmailAlertDoc,
+  ChatLinkPreviewCacheDoc,
+  ChatPushSubscriptionDoc,
+  ChatSavedDoc,
   ChatFileDoc,
   ChatInviteDoc,
   ChatMemberDoc,
@@ -106,6 +110,10 @@ export const collections = {
   chatMessages: () => getDb().collection<ChatMessageDoc>('chatMessages'),
   chatFiles: () => getDb().collection<ChatFileDoc>('chatFiles'),
   chatEmailAlerts: () => getDb().collection<ChatEmailAlertDoc>('chatEmailAlerts'),
+  chatSaved: () => getDb().collection<ChatSavedDoc>('chatSaved'),
+  chatPushSubscriptions: () => getDb().collection<ChatPushSubscriptionDoc>('chatPushSubscriptions'),
+  chatLinkPreviews: () => getDb().collection<ChatLinkPreviewCacheDoc>('chatLinkPreviews'),
+  chatConfig: () => getDb().collection<ChatConfigDoc>('chatConfig'),
 };
 
 /** Brings data from earlier versions up to date. Safe to run on every start. */
@@ -293,6 +301,14 @@ async function ensureIndexes(database: Db) {
     database.collection('chatFiles').createIndex({ messageId: 1, createdAt: 1 }),
     database.collection('chatFiles').createIndex({ spaceId: 1 }),
     database.collection('chatEmailAlerts').createIndex({ dueAt: 1 }),
+    database.collection('chatSaved').createIndex({ userId: 1, messageId: 1 }, { unique: true }),
+    database.collection('chatSaved').createIndex({ messageId: 1 }),
+    database.collection('chatPushSubscriptions').createIndex({ endpoint: 1 }, { unique: true }),
+    database.collection('chatPushSubscriptions').createIndex({ userId: 1 }),
+    database
+      .collection('chatLinkPreviews')
+      .createIndex({ fetchedAt: 1 }, { expireAfterSeconds: 7 * 86_400 }),
+    database.collection('chatMessages').createIndex({ spaceId: 1, pinnedAt: -1 }),
     database.collection('recordingChunks').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database.collection('leads').createIndex({ stage: 1, createdAt: -1 }),
     database.collection('leads').createIndex({ assigneeId: 1 }),

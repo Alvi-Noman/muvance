@@ -1,11 +1,20 @@
-import { useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, Copy, Link2, Trash2 } from 'lucide-react';
+import { Camera, Copy, Download, Link2, Smartphone, Trash2 } from 'lucide-react';
 import type { ChatGuestDto, ChatMeDto } from '@muvance/shared';
 import { api, errorMessage } from '@/lib/api';
 import { squareAvatar } from '@/lib/avatar-image';
-import { keys, patchPerson, useChat } from '@/lib/data';
-import { notificationsSupported, setSoundOn, soundOn } from '@/lib/notify';
+import { keys, patchBootstrap, patchPerson, useChat } from '@/lib/data';
+import {
+  ANDROID_APP_URL,
+  install,
+  isAndroid,
+  isInstalled,
+  isIos,
+  useCanInstall,
+} from '@/lib/install';
+import { setSoundOn, soundOn } from '@/lib/notify';
+import { disablePush, enablePush, usePushState } from '@/lib/push';
 import { cn, shortDate } from '@/lib/utils';
 import { PasswordInput } from '@/pages/LoginPage';
 import {
@@ -21,14 +30,30 @@ import {
   useToast,
 } from './ui';
 
-type Tab = 'profile' | 'notifications' | 'guests';
+export type SettingsTab = 'profile' | 'notifications' | 'app' | 'guests';
+type Tab = SettingsTab;
 
-export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function SettingsDialog({
+  open,
+  onClose,
+  initialTab = 'profile',
+}: {
+  open: boolean;
+  onClose: () => void;
+  initialTab?: SettingsTab;
+}) {
   const { me } = useChat();
-  const [tab, setTab] = useState<Tab>('profile');
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [shownFor, setShownFor] = useState(open);
+  // Opening again starts on the tab asked for.
+  if (open !== shownFor) {
+    setShownFor(open);
+    if (open) setTab(initialTab);
+  }
   const tabs: [Tab, string][] = [
     ['profile', 'Profile'],
     ['notifications', 'Notifications'],
+    ['app', 'Get the app'],
     ...(me.canManage ? ([['guests', 'Guests']] as [Tab, string][]) : []),
   ];
   return (
@@ -50,6 +75,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
       </div>
       {tab === 'profile' && <ProfileTab />}
       {tab === 'notifications' && <NotificationsTab />}
+      {tab === 'app' && <AppTab />}
       {tab === 'guests' && me.canManage && <GuestsTab />}
     </Dialog>
   );
@@ -201,41 +227,52 @@ function ChangePassword() {
   );
 }
 
-function usePermission() {
-  return useSyncExternalStore(
-    (l) => {
-      const t = window.setInterval(l, 1500);
-      return () => window.clearInterval(t);
-    },
-    () => (notificationsSupported() ? Notification.permission : 'unsupported'),
-  );
-}
-
 function NotificationsTab() {
-  const permission = usePermission();
+  const { pushKey } = useChat();
+  const push = usePushState();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
   const [sound, setSound] = useState(soundOn);
+  const toggle = async (on: boolean) => {
+    setBusy(true);
+    try {
+      if (on) await enablePush(pushKey);
+      else await disablePush();
+    } catch (error) {
+      toast(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-4 rounded-xl bg-canvas p-3.5">
         <div>
-          <p className="text-sm font-medium">Desktop notifications</p>
+          <p className="text-sm font-medium">Notifications on this device</p>
           <p className="text-xs text-muted">
-            {permission === 'granted'
-              ? 'On. You get a notification for new messages while Muvance Chat is in the background.'
-              : permission === 'denied'
-                ? 'Blocked in your browser. Allow notifications for chat.muvance.com in the browser’s site settings.'
-                : permission === 'unsupported'
-                  ? "This browser doesn't support notifications."
-                  : 'Get a notification for new messages while Muvance Chat is in the background.'}
+            {push === 'on'
+              ? 'On. New messages reach you here even when Muvance Chat is closed.'
+              : push === 'denied'
+                ? 'Blocked. Allow notifications for chat.muvance.com in your browser’s site settings, then come back here.'
+                : push === 'unsupported'
+                  ? isIos() && !isInstalled()
+                    ? 'On iPhone, add Muvance Chat to your Home Screen first (see Get the app).'
+                    : "This browser can't show notifications."
+                  : 'Get a notification for every new message, even when Muvance Chat is closed.'}
           </p>
         </div>
-        {permission === 'default' && (
-          <Button className="h-8 shrink-0" onClick={() => void Notification.requestPermission()}>
-            Turn on
-          </Button>
+        {(push === 'on' || push === 'off') && (
+          <Switch
+            checked={push === 'on'}
+            onChange={(on) => {
+              if (!busy) void toggle(on);
+            }}
+            label="Notifications on this device"
+          />
         )}
-        {permission === 'granted' && <Badge tone="accent">On</Badge>}
+        {push === 'denied' && <Badge tone="neutral">Blocked</Badge>}
       </div>
+      <DndRow />
       <div className="flex items-start justify-between gap-4 rounded-xl bg-canvas p-3.5">
         <div>
           <p className="text-sm font-medium">Sound</p>
@@ -254,6 +291,121 @@ function NotificationsTab() {
         Muted conversations stay quiet unless someone @mentions you. Clients also get an email when
         they have messages they haven't read for a while.
       </p>
+    </div>
+  );
+}
+
+/** Pause notifications for a while (they come back by themselves). */
+function DndRow() {
+  const { me } = useChat();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const until = me.dndUntil ? new Date(me.dndUntil) : null;
+  const set = async (minutes: number | 'tomorrow' | null) => {
+    let at: Date | null = null;
+    if (minutes === 'tomorrow') {
+      at = new Date();
+      at.setDate(at.getDate() + 1);
+      at.setHours(8, 0, 0, 0);
+    } else if (minutes) {
+      at = new Date();
+      at.setMinutes(at.getMinutes() + minutes);
+    }
+    try {
+      const updated = await api.put<ChatMeDto>('/me/dnd', { until: at?.toISOString() ?? null });
+      patchPerson(qc, updated);
+      patchBootstrap(qc, (d) => ({ ...d, me: updated }));
+      toast(at ? 'Notifications paused' : 'Notifications are back on');
+    } catch (error) {
+      toast(errorMessage(error));
+    }
+  };
+  return (
+    <div className="rounded-xl bg-canvas p-3.5">
+      <p className="text-sm font-medium">Do not disturb</p>
+      <p className="text-xs text-muted">
+        {until
+          ? `Notifications are paused until ${until.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}. Others see “Do not disturb”.`
+          : 'Pause notifications for a while. Others see that you’re not to be disturbed.'}
+      </p>
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {until ? (
+          <Button variant="secondary" className="h-8" onClick={() => void set(null)}>
+            Turn notifications back on
+          </Button>
+        ) : (
+          DND_CHOICES.map(([m, label]) => (
+            <Button key={label} variant="secondary" className="h-8" onClick={() => void set(m)}>
+              {label}
+            </Button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+const DND_CHOICES: [number | 'tomorrow', string][] = [
+  [30, '30 minutes'],
+  [60, '1 hour'],
+  [240, '4 hours'],
+  ['tomorrow', 'Until tomorrow'],
+];
+
+/** Muvance Chat as an app: on Android, iPhone and computers. */
+function AppTab() {
+  const canInstall = useCanInstall();
+  const installed = isInstalled();
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl bg-canvas p-3.5">
+        <p className="flex items-center gap-2 text-sm font-medium">
+          <Smartphone className="size-4 text-accent" /> Android
+        </p>
+        <p className="mt-1 text-xs text-muted">
+          The Muvance Chat app, with notifications for new messages. Open the download on your phone
+          and install it (allow installing from your browser if Android asks).
+        </p>
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          <a
+            href={ANDROID_APP_URL}
+            className="inline-flex h-8 items-center gap-2 rounded-lg bg-ink px-3 text-sm font-medium text-white hover:bg-black/85"
+          >
+            <Download className="size-4" /> Download for Android
+          </a>
+          {isAndroid() && canInstall && (
+            <Button variant="secondary" className="h-8" onClick={() => void install()}>
+              Or install from Chrome
+            </Button>
+          )}
+        </div>
+      </div>
+      <div className="rounded-xl bg-canvas p-3.5">
+        <p className="text-sm font-medium">iPhone and iPad</p>
+        <p className="mt-1 text-xs text-muted">
+          Open chat.muvance.com in Safari, tap the Share button, then <b>Add to Home Screen</b>.
+          Open Muvance Chat from your Home Screen and turn on notifications in Settings →
+          Notifications.
+        </p>
+      </div>
+      <div className="rounded-xl bg-canvas p-3.5">
+        <p className="text-sm font-medium">Computer</p>
+        <p className="mt-1 text-xs text-muted">
+          {installed
+            ? 'You’re using the installed app.'
+            : 'Install Muvance Chat as an app, with its own window and icon (Chrome and Edge).'}
+        </p>
+        {!installed && canInstall && !isAndroid() && (
+          <Button className="mt-2.5 h-8" onClick={() => void install()}>
+            Install app
+          </Button>
+        )}
+        {!installed && !canInstall && !isIos() && (
+          <p className="mt-1.5 text-xs text-muted">
+            In Chrome or Edge, use the install icon at the right of the address bar.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
