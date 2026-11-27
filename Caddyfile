@@ -96,6 +96,17 @@
 	}
 }
 
+# Muvance Account: the one sign-in for every Muvance app (its cookie covers the whole domain).
+{$ACCOUNTS_ADDRESS} {
+	import security_headers
+	header X-Robots-Tag "noindex, nofollow"
+	import api
+	handle {
+		encode zstd gzip
+		reverse_proxy accounts:80
+	}
+}
+
 # Muvance Mail (team webmail). Caddy's certificate for this name is also used by the mail
 # server for IMAP and SMTP.
 {$MAIL_ADDRESS} {

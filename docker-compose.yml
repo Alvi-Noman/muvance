@@ -83,6 +83,14 @@ services:
         APP: chat
     restart: unless-stopped
 
+  accounts:
+    build:
+      context: .
+      dockerfile: docker/spa.Dockerfile
+      args:
+        APP: accounts
+    restart: unless-stopped
+
   # Media server for meetings. Also used by `npm run dev` (the API's defaults match these keys).
   livekit:
     image: livekit/livekit-server:v1.13.11
@@ -117,6 +125,7 @@ services:
       # Muvance Mail's app runs locally too; the mail server itself only in production.
       MAIL_ADDRESS: http://localhost:8184
       CHAT_ADDRESS: http://localhost:8185
+      ACCOUNTS_ADDRESS: http://localhost:8186
       SITE_URL: http://localhost:8180
     ports:
       - '8180:8180'

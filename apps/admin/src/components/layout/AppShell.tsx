@@ -47,7 +47,7 @@ const nav: NavItem[] = [
   { to: '/call-recordings', label: 'Call recordings', icon: Clapperboard },
   { to: '/invoice', label: 'Invoice', icon: ReceiptText, permission: 'settings:manage' },
   { to: '/offer-letter', label: 'Offer letter', icon: FilePen, permission: 'settings:manage' },
-  { to: '/team', label: 'Team', icon: UserCog, permission: 'team:manage' },
+  { to: '/team', label: 'People', icon: UserCog, permission: 'team:manage' },
   { to: '/email', label: 'Email', icon: Mail, permission: 'team:manage' },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];

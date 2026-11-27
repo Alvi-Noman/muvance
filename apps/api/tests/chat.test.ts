@@ -13,7 +13,7 @@ import type {
 } from '@muvance/shared';
 import { collections } from '@/db/client';
 import { chatAlerts } from '@/modules/chat/alerts';
-import { app, signedIn } from './helpers';
+import { app, muvancePerson, signedIn } from './helpers';
 
 // Emails (invites, alerts) are captured instead of sent.
 const sent = vi.hoisted(() => [] as { from: string; to: string; subject: string; text: string }[]);
@@ -37,23 +37,12 @@ beforeAll(async () => {
   admin = (await signedIn('admin')).agent;
 });
 
-/** A teammate with a mailbox who has already chosen their own password. */
+/** A teammate: a Muvance account with Mail and Chat, signed in, past their starting password. */
 async function teammate(localPart: string) {
-  const res = await admin.post('/api/mail-accounts').send({
-    localPart,
-    name: `${localPart[0]!.toUpperCase()}${localPart.slice(1)} Khan`,
-    password: 'mailbox-password-1',
-  });
-  expect(res.status).toBe(201);
-  await collections
-    .mailAccounts()
-    .updateOne({ localPart }, { $set: { mustChangePassword: false } });
-  const agent = request.agent(app);
-  const login = await agent
-    .post('/api/chat/login')
-    .send({ email: localPart, password: 'mailbox-password-1' });
-  expect(login.status).toBe(200);
-  return { agent, id: login.body.id as string };
+  const { agent } = await muvancePerson(admin, localPart);
+  const me = await agent.get('/api/chat/me');
+  expect(me.status).toBe(200);
+  return { agent, id: me.body.id as string };
 }
 
 async function bootstrap(agent: request.Agent) {
@@ -77,20 +66,26 @@ async function guestIn(team: request.Agent, spaceId: string, email: string) {
 }
 
 describe('Muvance Chat sign-in', () => {
-  it('lets teammates in with their mailbox password, once they chose their own', async () => {
-    await admin
-      .post('/api/mail-accounts')
-      .send({ localPart: 'nadia', name: 'Nadia', password: 'mailbox-password-1' });
-    const fresh = await request(app)
+  it('lets teammates in with their Muvance account, once they chose their own password', async () => {
+    await admin.post('/api/team').send({
+      name: 'Nadia',
+      username: 'nadia',
+      password: 'starting-password-1',
+      role: 'member',
+      apps: { admin: false, mail: true, chat: true, meet: true },
+    });
+    // Chat's own sign-in is for clients only.
+    const viaChat = await request(app)
       .post('/api/chat/login')
-      .send({ email: 'nadia@muvance.com', password: 'mailbox-password-1' });
-    expect(fresh.status).toBe(403);
-    expect(fresh.body.error.message).toMatch(/Muvance Mail first/);
-
-    const wrong = await request(app)
-      .post('/api/chat/login')
-      .send({ email: 'nadia', password: 'nope-nope-nope' });
-    expect(wrong.status).toBe(401);
+      .send({ email: 'nadia@muvance.com', password: 'starting-password-1' });
+    expect(viaChat.status).toBe(400);
+    expect(viaChat.body.error.message).toMatch(/Muvance account/);
+    // Still on the starting password: not yet.
+    const fresh = request.agent(app);
+    await fresh
+      .post('/api/auth/login')
+      .send({ identifier: 'nadia', password: 'starting-password-1' });
+    expect((await fresh.get('/api/chat/me')).status).toBe(401);
 
     const { agent } = await teammate('omar');
     const data = await bootstrap(agent);
@@ -100,22 +95,28 @@ describe('Muvance Chat sign-in', () => {
       expect.arrayContaining(['omar@muvance.com', 'nadia@muvance.com']),
     );
 
-    // Other sign-ins don't open chat.
-    expect((await admin.get('/api/chat/me')).status).toBe(401);
-    await agent.post('/api/chat/logout');
+    // An account without a Muvance address (or without Chat) can't use chat.
+    expect((await admin.get('/api/chat/me')).status).toBe(403);
+    // Signing out of the Muvance account signs out of chat.
+    await agent.post('/api/auth/logout');
     expect((await agent.get('/api/chat/me')).status).toBe(401);
   });
 
-  it('ends access when the mailbox is deleted', async () => {
+  it('ends access when Chat is switched off for them', async () => {
     const { agent } = await teammate('temp');
-    const account = await collections.mailAccounts().findOne({ localPart: 'temp' });
-    expect((await admin.delete(`/api/mail-accounts/${account!._id.toHexString()}`)).status).toBe(
-      204,
-    );
-    // The next sync marks them removed.
+    const account = await collections.users().findOne({ usernameKey: 'temp' });
+    expect(
+      (
+        await admin
+          .patch(`/api/team/${account!._id.toHexString()}`)
+          .send({ apps: { admin: false, mail: true, chat: false, meet: true } })
+      ).status,
+    ).toBe(200);
+    expect((await agent.get('/api/chat/me')).status).toBe(403);
+    // The next sync marks them removed for everyone else.
     const { agent: other } = await teammate('keeper');
-    await bootstrap(other);
-    expect((await agent.get('/api/chat/me')).status).toBe(401);
+    const people = (await bootstrap(other)).people;
+    expect(people.find((p) => p.email === 'temp@muvance.com')?.status).toBe('removed');
   });
 });
 

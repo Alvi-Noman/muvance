@@ -8,7 +8,20 @@ import { api, errorMessage } from '@/lib/api';
 import { useSignIn } from '@/lib/auth';
 import { parseMeetingCode } from '@/lib/meeting-code';
 
-/** Team sign-in, with the same accounts as the admin. */
+const isLocal = () =>
+  window.location.hostname === 'localhost' || /^[\d.]+$/.test(window.location.hostname);
+
+/** The Muvance account page, coming back here afterwards. */
+function accountsUrl() {
+  const base = isLocal()
+    ? 'http://localhost:5178'
+    : `${window.location.protocol}//accounts.${window.location.hostname.split('.').slice(-2).join('.')}`;
+  const url = new URL('/', base);
+  url.searchParams.set('continue', window.location.href);
+  return url.toString();
+}
+
+/** Team sign-in with the Muvance account (the same one for every Muvance app). */
 export function SignInPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -23,8 +36,15 @@ export function SignInPage() {
     setError('');
     try {
       const me = await signIn.mutateAsync({ identifier, password });
+      // A starting password from an admin: choose your own on the account page, then come back.
       if (me.mustChangePassword) {
-        setError('Set your own password in the admin first, then sign in here.');
+        window.location.assign(accountsUrl());
+        return;
+      }
+      if (!me.apps.meet) {
+        setError(
+          "Your Muvance account can't host meetings. Ask an admin, or join with a code as a guest.",
+        );
         return;
       }
       const next = params.get('next');
@@ -51,10 +71,11 @@ export function SignInPage() {
         >
           <h1 className="font-serif text-4xl">Team sign in</h1>
           <p className="mt-2 text-sm text-neutral-600">
-            Use your Muvance admin account to start meetings and let guests in.
+            With your Muvance account (the same for Mail, Chat and the Admin CRM), to start meetings
+            and let guests in.
           </p>
           <label className="mt-6 block text-sm font-medium">
-            Email or username
+            Username or email
             <input
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}

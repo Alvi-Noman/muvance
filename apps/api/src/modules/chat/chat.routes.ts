@@ -50,7 +50,7 @@ import {
   randomToken,
   verifyPassword,
 } from '@/lib/security';
-import { verifySha512Crypt } from '@/lib/sha512-crypt';
+
 import { loginLimiter } from '@/middlewares/rate-limit';
 import { validateBody } from '@/middlewares/validate';
 import { decodeAvatar, mailService } from '@/modules/mail/mail.service';
@@ -192,22 +192,9 @@ chatRouter.post('/login', loginLimiter, validateBody(chatLoginSchema), async (re
   const { password } = req.body as { password: string };
   if (!email.includes('@')) email = `${email}@${env.MAIL_DOMAIN}`;
 
+  // The team signs in with their Muvance account (/api/auth/login); this is for clients.
   if (isTeamEmail(email)) {
-    const account = await collections.mailAccounts().findOne({ address: email });
-    if (!account || !verifySha512Crypt(password, account.passwordHash)) {
-      throw HttpError.unauthorized('Wrong email or password.');
-    }
-    if (account.mustChangePassword) {
-      throw HttpError.forbidden(
-        `Choose your own password in Muvance Mail first (mail.${env.MAIL_DOMAIN}), then sign in here with it.`,
-      );
-    }
-    await chatService.syncTeam();
-    const user = await collections.chatUsers().findOne({ email });
-    if (!user) throw HttpError.unauthorized('Wrong email or password.');
-    await chatSessions.create(user._id, password, res);
-    res.json(meDto(user));
-    return;
+    throw HttpError.badRequest('Sign in with your Muvance account.');
   }
 
   const user = await collections.chatUsers().findOne({ email, kind: 'guest' });
@@ -220,6 +207,7 @@ chatRouter.post('/login', loginLimiter, validateBody(chatLoginSchema), async (re
   res.json(meDto(user));
 });
 
+/** Signs a client out. (Teammates sign out of their Muvance account: /api/auth/logout.) */
 chatRouter.post('/logout', async (req, res) => {
   await chatSessions.destroy(req, res);
   res.status(204).end();
@@ -343,7 +331,7 @@ chatRouter.put('/me/password', validateBody(chatChangePasswordSchema), async (re
   const user = me(req);
   if (user.kind === 'team') {
     throw HttpError.badRequest(
-      `Your password is your email password. Change it in Muvance Mail (mail.${env.MAIL_DOMAIN}).`,
+      `Your password is your Muvance account's. Change it at ${env.ACCOUNTS_URL}.`,
     );
   }
   const { current, next } = req.body as { current: string; next: string };

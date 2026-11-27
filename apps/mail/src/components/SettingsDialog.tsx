@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Camera } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { accountsUrl } from '@/lib/account';
 import { api, errorMessage } from '@/lib/api';
 import { squareAvatar } from '@/lib/avatar-image';
 import { useMail } from '@/pages/MailApp';
@@ -21,9 +22,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
     setDisplayName(next.name);
     setSignature(next.signature);
   };
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [busy, setBusy] = useState<'profile' | 'password' | 'picture' | null>(null);
+  const [busy, setBusy] = useState<'profile' | 'picture' | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const changePicture = async (file: File | undefined) => {
@@ -61,21 +60,6 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
       await api.put('/identities', { address: editing, name: displayName, signature });
       await queryClient.invalidateQueries({ queryKey: ['me'] });
       toast('Saved');
-    } catch (error) {
-      toast(errorMessage(error));
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const changePassword = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy('password');
-    try {
-      await api.post('/password', { current, next });
-      toast('Password changed. Update it in your phone’s mail app too.');
-      setCurrent('');
-      setNext('');
     } catch (error) {
       toast(errorMessage(error));
     } finally {
@@ -197,33 +181,19 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
         </div>
       </form>
 
-      <form onSubmit={changePassword} className="mt-6 space-y-4 border-t border-line pt-6">
-        <h3 className="text-sm font-semibold">Change password</h3>
-        <input
-          type="password"
-          value={current}
-          onChange={(e) => setCurrent(e.target.value)}
-          placeholder="Current password"
-          autoComplete="current-password"
-          className={field}
-          required
-        />
-        <input
-          type="password"
-          value={next}
-          onChange={(e) => setNext(e.target.value)}
-          placeholder="New password (10+ characters)"
-          autoComplete="new-password"
-          minLength={10}
-          className={field}
-          required
-        />
-        <div className="flex justify-end">
-          <Button type="submit" variant="secondary" disabled={busy === 'password'}>
-            Change password
-          </Button>
+      <div className="mt-6 flex items-center justify-between gap-4 border-t border-line pt-6">
+        <div>
+          <h3 className="text-sm font-semibold">Password</h3>
+          <p className="text-xs text-muted">
+            Your Muvance account password: the same for Mail, Chat, Meet and your phone.
+          </p>
         </div>
-      </form>
+        <a href={accountsUrl()}>
+          <Button type="button" variant="secondary">
+            Change it
+          </Button>
+        </a>
+      </div>
 
       <div className="mt-6 rounded-xl bg-canvas p-4 text-[13px] text-muted">
         <p className="font-medium text-ink">Phone and computer mail apps</p>

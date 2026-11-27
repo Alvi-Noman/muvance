@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { WebmailFolderRole } from '@muvance/shared';
-import { api } from '@/lib/api';
+import { account } from '@/lib/account';
 import { useFolders } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useMail } from '@/pages/MailApp';
@@ -158,7 +158,7 @@ function AccountMenu() {
           <button
             type="button"
             onClick={async () => {
-              await api.post('/logout').catch(() => {});
+              await account.logout().catch(() => {});
               queryClient.clear();
               queryClient.setQueryData(['me'], null);
             }}

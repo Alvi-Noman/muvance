@@ -1,19 +1,20 @@
 import { Router } from 'express';
 import {
-  createMailAccountSchema,
   mailAddressSchema,
   mailAvatarSchema,
-  setMailPasswordSchema,
   updateMailAccountSchema,
   updateMailAddressSchema,
 } from '@muvance/shared';
-import { currentUser, requirePermission } from '@/middlewares/auth';
+import { requirePermission } from '@/middlewares/auth';
 import { validateBody } from '@/middlewares/validate';
 import { toObjectId } from '@/lib/object-id';
-import { mailService, toMailAccountDto } from './mail.service';
+import { mailService } from './mail.service';
 import { sendAvatar } from './send-avatar';
 
-/** Admin: team email accounts. Mounted behind `requireAuth`; owners and admins only. */
+/**
+ * Admin: team mailboxes. Mounted behind `requireAuth`; owners and admins only. Mailboxes come and
+ * go with Muvance accounts (People page, Mail switch), and use the account's password.
+ */
 export const mailAccountsRouter = Router();
 mailAccountsRouter.use(requirePermission('team:manage'));
 
@@ -21,26 +22,8 @@ mailAccountsRouter.get('/', async (_req, res) => {
   res.json(await mailService.list());
 });
 
-mailAccountsRouter.post('/', validateBody(createMailAccountSchema), async (req, res) => {
-  const doc = await mailService.create(req.body, currentUser(req));
-  res.status(201).json(toMailAccountDto(doc));
-});
-
 mailAccountsRouter.patch('/:id', validateBody(updateMailAccountSchema), async (req, res) => {
   res.json(await mailService.update(toObjectId(String(req.params.id), 'Email account'), req.body));
-});
-
-mailAccountsRouter.post('/:id/password', validateBody(setMailPasswordSchema), async (req, res) => {
-  await mailService.setPassword(
-    toObjectId(String(req.params.id), 'Email account'),
-    req.body.password as string,
-  );
-  res.status(204).end();
-});
-
-mailAccountsRouter.delete('/:id', async (req, res) => {
-  await mailService.remove(toObjectId(String(req.params.id), 'Email account'));
-  res.status(204).end();
 });
 
 mailAccountsRouter.get('/:id/avatar', async (req, res) => {

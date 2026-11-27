@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { createUserSchema, inviteUserSchema, updateUserSchema } from '@muvance/shared';
+import {
+  createUserSchema,
+  inviteUserSchema,
+  setAddressSchema,
+  updateUserSchema,
+} from '@muvance/shared';
 import { currentUser, requirePermission } from '@/middlewares/auth';
 import { validateBody } from '@/middlewares/validate';
 import { teamService } from './team.service';
@@ -33,6 +38,16 @@ teamRouter.delete('/invites/:id', async (req, res) => {
 
 teamRouter.patch('/:id', validateBody(updateUserSchema), async (req, res) => {
   res.json(await teamService.update(currentUser(req), String(req.params.id), req.body));
+});
+
+teamRouter.post('/:id/address', validateBody(setAddressSchema), async (req, res) => {
+  res.json(
+    await teamService.setAddress(
+      currentUser(req),
+      String(req.params.id),
+      req.body.username as string,
+    ),
+  );
 });
 
 teamRouter.post('/:id/reset-link', async (req, res) => {

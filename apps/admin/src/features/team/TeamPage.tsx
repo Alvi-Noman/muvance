@@ -1,13 +1,30 @@
 import { useState, type FormEvent } from 'react';
-import { Check, Copy, Eye, EyeOff, KeyRound, Link2, RefreshCw, UserPlus, X } from 'lucide-react';
+import {
+  AtSign,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Link2,
+  RefreshCw,
+  UserPlus,
+  X,
+} from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
+  appDescriptions,
+  appLabels,
   createUserSchema,
+  muvanceApps,
   roleDescriptions,
   roleLabels,
   roles,
+  type AppAccess,
+  type CreateUserResultDto,
   type InviteLinkDto,
+  type MuvanceApp,
   type Role,
   type TeamDto,
   type UserDto,
@@ -18,11 +35,13 @@ import { Field, Input, Select } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { Avatar, Badge, PageHeader, PageLoader } from '@/components/ui/misc';
 import { useCurrentUser } from '@/features/auth/auth';
+import { accountsUrl } from '@/lib/accounts';
 import { api, errorMessage } from '@/lib/api-client';
 import { cn } from '@/lib/cn';
 import { formatDate, formatRelative } from '@/lib/format';
 
 const teamKey = ['team'] as const;
+const DOMAIN = 'muvance.com';
 
 /** Owners manage everyone; admins manage members and viewers (mirrors the API rule). */
 const canManageRole = (actor: Role, role: Role) =>
@@ -36,22 +55,42 @@ function useTeamMutation<T, R>(fn: (input: T) => Promise<R>) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: teamKey }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: teamKey });
+      void queryClient.invalidateQueries({ queryKey: ['mail-accounts'] });
+    },
   });
 }
 
+function PersonAvatar({ user }: { user: UserDto }) {
+  return user.avatarUrl ? (
+    <img src={user.avatarUrl} alt="" className="size-9 shrink-0 rounded-full object-cover" />
+  ) : (
+    <Avatar name={user.name} className="size-9" />
+  );
+}
+
+/** People: everyone with a Muvance account, and the apps each may use. */
 export function TeamPage() {
   const me = useCurrentUser();
   const { data, isPending } = useTeam();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState<Credentials | null>(null);
+  const [giving, setGiving] = useState<UserDto | null>(null);
   const [link, setLink] = useState<{ title: string; email: string; link: InviteLinkDto } | null>(
     null,
   );
 
   const updateUser = useTeamMutation(
-    ({ id, ...body }: { id: string; role?: Role; status?: 'active' | 'disabled' }) =>
-      api.patch<UserDto>(`/team/${id}`, body),
+    ({
+      id,
+      ...body
+    }: {
+      id: string;
+      role?: Role;
+      status?: 'active' | 'disabled';
+      apps?: AppAccess;
+    }) => api.patch<UserDto>(`/team/${id}`, body),
   );
   const resetLink = useTeamMutation((id: string) =>
     api.post<InviteLinkDto>(`/team/${id}/reset-link`),
@@ -60,11 +99,31 @@ export function TeamPage() {
 
   if (isPending || !data) return <PageLoader />;
 
+  const toggleApp = (user: UserDto, app: MuvanceApp) => {
+    const on = !user.apps[app];
+    if (app === 'mail' && !on) {
+      const ok = confirm(
+        `Remove ${user.address}'s mailbox? It stops receiving mail and they can't open it. The mail already there is kept on the server.`,
+      );
+      if (!ok) return;
+    }
+    updateUser.mutate(
+      { id: user.id, apps: { ...user.apps, [app]: on } },
+      {
+        onSuccess: () =>
+          toast.success(
+            `${appLabels[app]} ${on ? 'switched on' : 'switched off'} for ${user.name}`,
+          ),
+        onError: (error) => toast.error(errorMessage(error)),
+      },
+    );
+  };
+
   return (
     <>
       <PageHeader
-        title="Team"
-        description="Add people and control what they can do."
+        title="People"
+        description="Everyone with a Muvance account: one sign-in for the Admin CRM, Mail, Chat and Meet."
         actions={
           <Button onClick={() => setAdding(true)}>
             <UserPlus className="size-4" aria-hidden />
@@ -75,8 +134,10 @@ export function TeamPage() {
 
       <Card>
         <CardHeader
-          title="Members"
-          description={`${data.users.length} ${data.users.length === 1 ? 'person' : 'people'}`}
+          title="Muvance accounts"
+          description={`${data.users.length} ${data.users.length === 1 ? 'person' : 'people'} · they sign in at ${accountsUrl()
+            .replace(/^https?:\/\//, '')
+            .replace(/\/$/, '')} or any Muvance app`}
         />
         <ul className="divide-y divide-black/[0.05]">
           {data.users.map((user) => {
@@ -86,28 +147,64 @@ export function TeamPage() {
               <li
                 key={user.id}
                 className={cn(
-                  'flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center',
+                  'flex flex-col gap-3 px-5 py-4 xl:flex-row xl:items-center',
                   user.status === 'disabled' && 'opacity-60',
                 )}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <Avatar name={user.name} className="size-9" />
+                  <PersonAvatar user={user} />
                   <div className="min-w-0">
                     <p className="truncate font-medium">
                       {user.name} {isMe && <span className="text-neutral-400">(you)</span>}
                     </p>
-                    <p className="truncate text-sm text-neutral-500">
-                      {[user.username && `@${user.username}`, user.email]
-                        .filter(Boolean)
-                        .join(' · ')}
+                    {user.address ? (
+                      <p className="truncate text-sm text-neutral-500">{user.address}</p>
+                    ) : (
+                      <p className="truncate text-sm text-amber-700">
+                        No Muvance address yet{user.email ? ` · signs in with ${user.email}` : ''}
+                      </p>
+                    )}
+                    <p className="text-xs text-neutral-400">
+                      {user.lastLoginAt
+                        ? `Active ${formatRelative(user.lastLoginAt)}`
+                        : 'Never signed in'}
                     </p>
                   </div>
                 </div>
-                <p className="text-xs text-neutral-500 sm:w-36">
-                  {user.lastLoginAt
-                    ? `Active ${formatRelative(user.lastLoginAt)}`
-                    : 'Never signed in'}
-                </p>
+
+                <div className="flex flex-wrap items-center gap-1.5" aria-label="Apps">
+                  {muvanceApps.map((app) => {
+                    const on = user.apps[app];
+                    const disabled =
+                      !manageable || user.status !== 'active' || (app === 'mail' && !user.address);
+                    return (
+                      <button
+                        key={app}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => toggleApp(user, app)}
+                        title={
+                          app === 'mail' && !user.address
+                            ? 'Give them a Muvance address first'
+                            : `${appLabels[app]}: ${on ? 'on' : 'off'}`
+                        }
+                        aria-pressed={on}
+                        className={cn(
+                          'inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs font-medium transition',
+                          on
+                            ? 'border-neutral-950 bg-neutral-950 text-white'
+                            : 'border-black/10 text-neutral-400',
+                          !disabled && 'hover:border-black/40',
+                          disabled && 'cursor-default',
+                        )}
+                      >
+                        {on && <Check className="size-3" aria-hidden />}
+                        {appLabels[app].replace(' CRM', '')}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <div className="flex flex-wrap items-center gap-2">
                   {user.status === 'disabled' && (
                     <Badge className="bg-red-50 text-red-700">Disabled</Badge>
@@ -115,54 +212,61 @@ export function TeamPage() {
                   {user.mustChangePassword && user.status === 'active' && (
                     <Badge className="bg-amber-50 text-amber-700">Starting password</Badge>
                   )}
-                  {manageable ? (
-                    <Select
-                      aria-label={`Role for ${user.name}`}
-                      className="w-32"
-                      value={user.role}
-                      onChange={(e) =>
-                        updateUser.mutate(
-                          { id: user.id, role: e.target.value as Role },
-                          {
-                            onSuccess: () =>
-                              toast.success(
-                                `${user.name} is now ${roleLabels[e.target.value as Role]}`,
-                              ),
-                          },
-                        )
-                      }
-                    >
-                      {roles
-                        .filter((r) => canManageRole(me.role, r))
-                        .map((r) => (
-                          <option key={r} value={r}>
-                            {roleLabels[r]}
-                          </option>
-                        ))}
-                    </Select>
-                  ) : (
-                    <Badge className="bg-neutral-100 text-neutral-700">
-                      {roleLabels[user.role]}
-                    </Badge>
+                  {user.apps.admin &&
+                    (manageable ? (
+                      <Select
+                        aria-label={`Admin role for ${user.name}`}
+                        className="w-28"
+                        value={user.role}
+                        onChange={(e) =>
+                          updateUser.mutate(
+                            { id: user.id, role: e.target.value as Role },
+                            {
+                              onSuccess: () =>
+                                toast.success(
+                                  `${user.name} is now ${roleLabels[e.target.value as Role]}`,
+                                ),
+                            },
+                          )
+                        }
+                      >
+                        {roles
+                          .filter((r) => canManageRole(me.role, r))
+                          .map((r) => (
+                            <option key={r} value={r}>
+                              {roleLabels[r]}
+                            </option>
+                          ))}
+                      </Select>
+                    ) : (
+                      <Badge className="bg-neutral-100 text-neutral-700">
+                        {roleLabels[user.role]}
+                      </Badge>
+                    ))}
+                  {!user.address && (manageable || isMe) && (
+                    <Button size="sm" variant="secondary" onClick={() => setGiving(user)}>
+                      <AtSign className="size-3.5" aria-hidden />
+                      Give address
+                    </Button>
                   )}
                   {(manageable || isMe) && user.status === 'active' && (
                     <Button
                       size="sm"
                       variant="ghost"
-                      title="Create a password reset link"
+                      title="A link to choose a new password"
                       onClick={() =>
                         resetLink.mutate(user.id, {
                           onSuccess: (l) =>
                             setLink({
-                              title: 'Password reset link',
-                              email: user.email ?? user.name,
+                              title: 'Password link',
+                              email: user.address ?? user.email ?? user.name,
                               link: l,
                             }),
                         })
                       }
                     >
                       <KeyRound className="size-3.5" aria-hidden />
-                      Reset link
+                      Password link
                     </Button>
                   )}
                   {manageable && (
@@ -173,7 +277,9 @@ export function TeamPage() {
                         const status = user.status === 'active' ? 'disabled' : 'active';
                         if (
                           status === 'disabled' &&
-                          !confirm(`Disable ${user.name}? They'll be signed out right away.`)
+                          !confirm(
+                            `Disable ${user.name}? They're signed out of every Muvance app right away, mail included.`,
+                          )
                         )
                           return;
                         updateUser.mutate(
@@ -234,18 +340,27 @@ export function TeamPage() {
         open={adding}
         onClose={() => setAdding(false)}
         actorRole={me.role}
-        onCreated={(credentials) => {
+        onCreated={(result, credentials) => {
           setAdding(false);
-          setAdded(credentials);
+          if (result.link) {
+            setLink({
+              title: `${result.user.name} is added`,
+              email: result.user.address ?? result.user.name,
+              link: result.link,
+            });
+          } else {
+            setAdded(credentials);
+          }
         }}
       />
+      <GiveAddressModal user={giving} onClose={() => setGiving(null)} />
       <CredentialsModal value={added} onClose={() => setAdded(null)} />
       <LinkModal value={link} onClose={() => setLink(null)} />
     </>
   );
 }
 
-type Credentials = { username: string; email: string; password: string; role: Role };
+type Credentials = { name: string; username: string; password: string; role: Role };
 
 /** Easy to read out or type: no characters that look alike. */
 function generatePassword() {
@@ -254,7 +369,8 @@ function generatePassword() {
   return Array.from(values, (v) => alphabet[v % alphabet.length]).join('');
 }
 
-const emptyPerson = { username: '', email: '', password: '' };
+const emptyPerson = { name: '', username: '', password: '' };
+const defaultApps: AppAccess = { admin: false, mail: true, chat: true, meet: true };
 
 function AddPersonModal({
   open,
@@ -265,12 +381,14 @@ function AddPersonModal({
   open: boolean;
   onClose: () => void;
   actorRole: Role;
-  onCreated: (credentials: Credentials) => void;
+  onCreated: (result: CreateUserResultDto, credentials: Credentials) => void;
 }) {
   const queryClient = useQueryClient();
   const allowed = roles.filter((r) => canManageRole(actorRole, r));
   const [values, setValues] = useState(emptyPerson);
   const [role, setRole] = useState<Role>('member');
+  const [apps, setApps] = useState<AppAccess>(defaultApps);
+  const [passwordMode, setPasswordMode] = useState<'link' | 'password'>('link');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const setField = (key: keyof typeof emptyPerson, value: string) => {
@@ -284,6 +402,8 @@ function AddPersonModal({
   const reset = () => {
     setValues(emptyPerson);
     setRole('member');
+    setApps(defaultApps);
+    setPasswordMode('link');
     setShowPassword(false);
     setErrors({});
     add.reset();
@@ -294,10 +414,11 @@ function AddPersonModal({
   };
 
   const add = useMutation({
-    mutationFn: (input: Credentials) => api.post<UserDto>('/team', input),
-    onSuccess: (_user, input) => {
+    mutationFn: (input: unknown) => api.post<CreateUserResultDto>('/team', input),
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: teamKey });
-      onCreated(input);
+      void queryClient.invalidateQueries({ queryKey: ['mail-accounts'] });
+      onCreated(result, { ...values, role });
       reset();
     },
     onError: () => {},
@@ -305,7 +426,13 @@ function AddPersonModal({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const parsed = createUserSchema.safeParse({ ...values, role });
+    const parsed = createUserSchema.safeParse({
+      name: values.name,
+      username: values.username,
+      password: passwordMode === 'password' ? values.password : undefined,
+      role,
+      apps,
+    });
     if (!parsed.success) {
       const next: Record<string, string> = {};
       for (const issue of parsed.error.issues) next[String(issue.path[0])] ??= issue.message;
@@ -321,96 +448,150 @@ function AddPersonModal({
       open={open}
       onClose={close}
       title="Add a person"
-      description="They can sign in with their username or email, then must create their own password."
+      description="They get a Muvance account: one sign-in for every app you switch on below."
     >
       <form onSubmit={submit} noValidate className="space-y-5">
-        <Field label="Username" error={errors.username}>
-          {(p) => (
-            <Input
-              {...p}
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              value={values.username}
-              onChange={set('username')}
-            />
-          )}
+        <Field label="Name" error={errors.name}>
+          {(p) => <Input {...p} autoComplete="off" value={values.name} onChange={set('name')} />}
         </Field>
-        <Field label="Email" error={errors.email}>
+        <Field
+          label="Username"
+          hint="Also their email address. It can't be changed later."
+          error={errors.username}
+        >
           {(p) => (
-            <Input
-              {...p}
-              type="email"
-              autoComplete="off"
-              value={values.email}
-              onChange={set('email')}
-            />
-          )}
-        </Field>
-        <Field label="Starting password" hint="At least 10 characters." error={errors.password}>
-          {(p) => (
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Input
-                  {...p}
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  spellCheck={false}
-                  className="pr-10"
-                  value={values.password}
-                  onChange={set('password')}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((s) => !s)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 grid w-10 place-items-center text-neutral-400 hover:text-neutral-950"
-                >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setField('password', generatePassword());
-                  setShowPassword(true);
-                }}
-              >
-                <RefreshCw className="size-4" aria-hidden />
-                Generate
-              </Button>
+            <div className="flex items-center rounded-xl border border-black/10 focus-within:border-neutral-950">
+              <Input
+                {...p}
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                value={values.username}
+                onChange={set('username')}
+                className="border-0 shadow-none focus:ring-0"
+              />
+              <span className="pr-3 text-sm text-neutral-500">@{DOMAIN}</span>
             </div>
           )}
         </Field>
+
         <fieldset>
-          <legend className="mb-2 text-sm font-medium text-neutral-800">Role</legend>
-          <div className="space-y-2">
-            {allowed.map((r) => (
+          <legend className="mb-2 text-sm font-medium text-neutral-800">Apps</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {muvanceApps.map((app) => (
               <label
-                key={r}
+                key={app}
                 className={cn(
                   'flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors',
-                  role === r
-                    ? 'border-neutral-950 bg-neutral-50'
-                    : 'border-black/10 hover:border-black/25',
+                  apps[app] ? 'border-neutral-950 bg-neutral-50' : 'border-black/10',
                 )}
               >
                 <input
-                  type="radio"
-                  name="role"
-                  value={r}
-                  checked={role === r}
-                  onChange={() => setRole(r)}
+                  type="checkbox"
+                  checked={apps[app]}
+                  onChange={(e) => setApps((a) => ({ ...a, [app]: e.target.checked }))}
                   className="mt-0.5 size-4 accent-neutral-950"
                 />
                 <span>
-                  <span className="block text-sm font-medium">{roleLabels[r]}</span>
-                  <span className="block text-sm text-neutral-500">{roleDescriptions[r]}</span>
+                  <span className="block text-sm font-medium">{appLabels[app]}</span>
+                  <span className="block text-xs text-neutral-500">{appDescriptions[app]}</span>
                 </span>
               </label>
             ))}
           </div>
         </fieldset>
+
+        {apps.admin && (
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium text-neutral-800">Admin CRM role</legend>
+            <div className="space-y-2">
+              {allowed.map((r) => (
+                <label
+                  key={r}
+                  className={cn(
+                    'flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors',
+                    role === r
+                      ? 'border-neutral-950 bg-neutral-50'
+                      : 'border-black/10 hover:border-black/25',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="role"
+                    value={r}
+                    checked={role === r}
+                    onChange={() => setRole(r)}
+                    className="mt-0.5 size-4 accent-neutral-950"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">{roleLabels[r]}</span>
+                    <span className="block text-sm text-neutral-500">{roleDescriptions[r]}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium text-neutral-800">Password</legend>
+          <div className="space-y-2">
+            {(
+              [
+                ['link', 'Send them a link to choose their own (recommended)'],
+                ['password', 'Set a starting password (they change it when they sign in)'],
+              ] as const
+            ).map(([mode, label]) => (
+              <label key={mode} className="flex cursor-pointer items-center gap-3 text-sm">
+                <input
+                  type="radio"
+                  name="password-mode"
+                  checked={passwordMode === mode}
+                  onChange={() => setPasswordMode(mode)}
+                  className="size-4 accent-neutral-950"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {passwordMode === 'password' && (
+          <Field label="Starting password" hint="At least 10 characters." error={errors.password}>
+            {(p) => (
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    {...p}
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    spellCheck={false}
+                    className="pr-10"
+                    value={values.password}
+                    onChange={set('password')}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((s) => !s)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 grid w-10 place-items-center text-neutral-400 hover:text-neutral-950"
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setField('password', generatePassword());
+                    setShowPassword(true);
+                  }}
+                >
+                  <RefreshCw className="size-4" aria-hidden />
+                  Generate
+                </Button>
+              </div>
+            )}
+          </Field>
+        )}
         {add.isError && (
           <p role="alert" className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
             {errorMessage(add.error)}
@@ -429,17 +610,82 @@ function AddPersonModal({
   );
 }
 
+/** For accounts from before Muvance addresses: gives them one (and merges its mailbox). */
+function GiveAddressModal({ user, onClose }: { user: UserDto | null; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [username, setUsername] = useState('');
+  const give = useMutation({
+    mutationFn: () => api.post<UserDto>(`/team/${user!.id}/address`, { username }),
+    onSuccess: (updated) => {
+      void queryClient.invalidateQueries({ queryKey: teamKey });
+      void queryClient.invalidateQueries({ queryKey: ['mail-accounts'] });
+      toast.success(`${updated.name} is now ${updated.address}`);
+      setUsername('');
+      onClose();
+    },
+    onError: () => {},
+  });
+  return (
+    <Modal
+      open={!!user}
+      onClose={() => {
+        setUsername('');
+        give.reset();
+        onClose();
+      }}
+      title={user ? `A Muvance address for ${user.name}` : ''}
+      description="If that mailbox already exists (as its own account), the two become one account. They keep signing in with the password they use now."
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          give.mutate();
+        }}
+        className="space-y-4"
+      >
+        <Field label="Address">
+          {(p) => (
+            <div className="flex items-center rounded-xl border border-black/10 focus-within:border-neutral-950">
+              <Input
+                {...p}
+                autoFocus
+                autoCapitalize="none"
+                spellCheck={false}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="border-0 shadow-none focus:ring-0"
+              />
+              <span className="pr-3 text-sm text-neutral-500">@{DOMAIN}</span>
+            </div>
+          )}
+        </Field>
+        {give.isError && (
+          <p role="alert" className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
+            {errorMessage(give.error)}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={give.isPending} disabled={!username.trim()}>
+            Give address
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 /** Shown once, straight after adding someone: the password can't be read back later. */
 function CredentialsModal({ value, onClose }: { value: Credentials | null; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
-  const signIn = `${window.location.origin}/login`;
   const rows = value
     ? [
-        ['Sign in at', signIn],
-        ['Username', value.username],
-        ['Email', value.email],
+        ['Sign in at', accountsUrl()],
+        ['Username', value.username.toLowerCase()],
+        ['Email address', `${value.username.toLowerCase()}@${DOMAIN}`],
         ['Starting password', value.password],
-        ['Role', roleLabels[value.role]],
       ]
     : [];
   const copy = async () => {
@@ -452,8 +698,8 @@ function CredentialsModal({ value, onClose }: { value: Credentials | null; onClo
     <Modal
       open={!!value}
       onClose={onClose}
-      title={value ? `${value.username} is added` : ''}
-      description="Send them these details privately. They'll create their own password when they sign in."
+      title={value ? `${value.name} is added` : ''}
+      description="Send them these details privately. They'll create their own password when they first sign in, and it works in every Muvance app."
     >
       {value && (
         <div className="space-y-4">
@@ -466,8 +712,8 @@ function CredentialsModal({ value, onClose }: { value: Credentials | null; onClo
             ))}
           </dl>
           <p className="text-xs text-neutral-500">
-            For security, this password is only shown now. If it gets lost, create a reset link for
-            them on this page.
+            For security, this password is only shown now. If it gets lost, create a password link
+            for them on this page.
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={copy}>
@@ -504,7 +750,7 @@ function LinkModal({
       title={value?.title ?? ''}
       description={
         value
-          ? `Send this to ${value.email}. It works once and expires ${formatRelative(value.link.expiresAt)}.`
+          ? `Send this to ${value.email} privately. They choose their password with it, then use it in every Muvance app. It works once and expires ${formatRelative(value.link.expiresAt)}.`
           : undefined
       }
     >

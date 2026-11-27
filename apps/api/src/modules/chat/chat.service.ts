@@ -4,6 +4,7 @@ import { env } from '@/config/env';
 import { collections } from '@/db/client';
 import type { ChatMemberDoc, ChatMessageDoc, ChatSpaceDoc, ChatUserDoc } from '@/db/types';
 import { iso } from '@/lib/object-id';
+import { appsOf, isMuvanceAddress } from '@/modules/auth/account';
 import { HttpError } from '@/utils/http-error';
 import { hub } from './hub';
 
@@ -125,17 +126,34 @@ export function plainText(text: string, names: Map<string, string>) {
 
 export const chatService = {
   /**
-   * Keeps teammates in step with the team's mailboxes: every @muvance.com mailbox can use chat
-   * (so people can be added to spaces before they first sign in), and a deleted mailbox can't.
+   * Keeps teammates in step with Muvance accounts: every account with Chat can use it (so people
+   * can be added to spaces before they first sign in), and losing Chat (or the account) ends it.
    */
   async syncTeam() {
-    const [accounts, team] = await Promise.all([
+    const [users, team] = await Promise.all([
       collections
-        .mailAccounts()
-        .find({}, { projection: { address: 1, name: 1, 'avatar.updatedAt': 1 } })
+        .users()
+        .find(
+          { status: 'active' },
+          { projection: { email: 1, name: 1, apps: 1, mailAccountId: 1 } },
+        )
         .toArray(),
       collections.chatUsers().find({ kind: 'team' }).toArray(),
     ]);
+    const withChat = users.filter((u) => appsOf(u).chat && isMuvanceAddress(u.email));
+    const mailboxes = await collections
+      .mailAccounts()
+      .find(
+        { _id: { $in: withChat.flatMap((u) => (u.mailAccountId ? [u.mailAccountId] : [])) } },
+        { projection: { 'avatar.updatedAt': 1 } },
+      )
+      .toArray();
+    const accounts = withChat.map((u) => ({
+      address: u.email!.toLowerCase(),
+      name: u.name,
+      avatar:
+        mailboxes.find((m) => u.mailAccountId && m._id.equals(u.mailAccountId))?.avatar ?? null,
+    }));
     const byEmail = new Map(team.map((u) => [u.email, u]));
     const now = new Date();
     for (const a of accounts) {

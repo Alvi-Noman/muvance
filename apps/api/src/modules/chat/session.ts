@@ -3,18 +3,25 @@ import { ObjectId } from 'mongodb';
 import { cookieSecure, env } from '@/config/env';
 import { collections } from '@/db/client';
 import type { ChatUserDoc } from '@/db/types';
+import { decrypt } from '@/lib/secret-box';
 import { hashToken, randomToken } from '@/lib/security';
-import { decrypt, encrypt } from '@/modules/webmail/session';
+import { addressOf, appsOf } from '@/modules/auth/account';
+import { chatService } from './chat.service';
+import { SESSION_COOKIE, sessionsService } from '@/modules/auth/sessions.service';
 import { HttpError } from '@/utils/http-error';
 
-/** Muvance Chat sign-ins (chat.muvance.com), separate from the admin's and the webmail's. */
+/**
+ * Who's using Muvance Chat: teammates through their Muvance account (the sign-in every app shares),
+ * and clients (guests) through their own chat sign-in.
+ */
 export const CHAT_COOKIE = 'mvc_session';
 const COOKIE_PATH = '/api/chat';
 
 export interface ChatSession {
+  /** The sign-in's id (the account sign-in for teammates). */
   id: ObjectId;
   user: ChatUserDoc;
-  /** Teammates' mailbox password (to send invites and alerts from their address). */
+  /** Teammates' account password (to send invites and alerts from their address). */
   mailPassword: string | null;
 }
 
@@ -36,27 +43,16 @@ function setCookie(res: Response, token: string, expires: Date) {
   });
 }
 
-// Teammates whose mailbox was deleted lose access; checked at most once a minute per person.
-const mailboxChecked = new Map<string, number>();
-async function mailboxStillExists(email: string) {
-  const at = mailboxChecked.get(email);
-  if (at && Date.now() - at < 60_000) return true;
-  const exists = Boolean(
-    await collections.mailAccounts().findOne({ address: email }, { projection: { _id: 1 } }),
-  );
-  if (exists) mailboxChecked.set(email, Date.now());
-  return exists;
-}
-
 export const chatSessions = {
-  async create(userId: ObjectId, mailPassword: string | null, res: Response) {
+  /** A client's (guest's) sign-in. Teammates use their Muvance account instead. */
+  async create(userId: ObjectId, _unused: null, res: Response) {
     const token = randomToken();
     const expiresAt = new Date(Date.now() + ttlMs());
     await collections.chatSessions().insertOne({
       _id: new ObjectId(),
       tokenHash: hashToken(token),
       userId,
-      passwordEnc: mailPassword ? encrypt(mailPassword) : null,
+      passwordEnc: null,
       createdAt: new Date(),
       expiresAt,
     });
@@ -75,11 +71,23 @@ export const chatSessions = {
     await collections.chatSessions().deleteMany({ userId });
   },
 
-  /** A teammate's mailbox password from any of their sign-ins, to send mail as them. */
-  async mailPasswordOf(userId: ObjectId) {
+  /** A teammate's password from one of their account sign-ins, to send mail as them. */
+  async mailPasswordOf(chatUserId: ObjectId) {
+    const chatUser = await collections
+      .chatUsers()
+      .findOne({ _id: chatUserId, kind: 'team' }, { projection: { email: 1 } });
+    if (!chatUser) return null;
+    const account = await collections
+      .users()
+      .findOne({ email: chatUser.email }, { projection: { _id: 1 } });
+    if (!account) return null;
     const sessions = await collections
-      .chatSessions()
-      .find({ userId, passwordEnc: { $type: 'string' }, expiresAt: { $gt: new Date() } })
+      .sessions()
+      .find({
+        userId: account._id,
+        passwordEnc: { $type: 'string' },
+        expiresAt: { $gt: new Date() },
+      })
       .sort({ createdAt: -1 })
       .limit(3)
       .toArray();
@@ -94,30 +102,18 @@ export const chatSessions = {
   },
 };
 
-/** Requires a Muvance Chat sign-in and puts it on `req.chatSession`. */
-export const requireChatSession: RequestHandler = async (req, res, next) => {
+/** A guest's chat sign-in, if the request has a valid one. */
+async function guestSession(req: Request, res: Response): Promise<ChatSession | null> {
   const token: unknown = req.cookies?.[CHAT_COOKIE];
-  if (typeof token !== 'string' || !token) return next(HttpError.unauthorized());
+  if (typeof token !== 'string' || !token) return null;
   const doc = await collections.chatSessions().findOne({ tokenHash: hashToken(token) });
-  if (!doc || doc.expiresAt.getTime() < Date.now()) {
-    return next(HttpError.unauthorized('Please sign in again.'));
-  }
+  if (!doc || doc.expiresAt.getTime() < Date.now()) return null;
   const user = await collections.chatUsers().findOne({ _id: doc.userId });
-  if (!user || user.status === 'removed') {
+  // Teammates' old chat sign-ins ended with Muvance accounts.
+  if (!user || user.status === 'removed' || user.kind !== 'guest') {
     await collections.chatSessions().deleteOne({ _id: doc._id });
-    return next(HttpError.unauthorized('Your access to Muvance Chat has ended.'));
-  }
-  if (user.kind === 'team' && !(await mailboxStillExists(user.email))) {
-    await collections.chatSessions().deleteMany({ userId: user._id });
-    return next(HttpError.unauthorized('Your access to Muvance Chat has ended.'));
-  }
-  let mailPassword: string | null = null;
-  if (doc.passwordEnc) {
-    try {
-      mailPassword = decrypt(doc.passwordEnc);
-    } catch {
-      mailPassword = null;
-    }
+    res.clearCookie(CHAT_COOKIE, { path: COOKIE_PATH });
+    return null;
   }
   // Sliding expiry: people who use it stay signed in.
   if (doc.expiresAt.getTime() - Date.now() < ttlMs() - 86_400_000) {
@@ -125,8 +121,48 @@ export const requireChatSession: RequestHandler = async (req, res, next) => {
     await collections.chatSessions().updateOne({ _id: doc._id }, { $set: { expiresAt } });
     setCookie(res, token, expiresAt);
   }
-  req.chatSession = { id: doc._id, user, mailPassword };
-  next();
+  return { id: doc._id, user, mailPassword: null };
+}
+
+/** A teammate signed in with their Muvance account (with Chat), as their chat person. */
+async function teamSession(req: Request, res: Response): Promise<ChatSession | 'no-access' | null> {
+  const token: unknown = req.cookies?.[SESSION_COOKIE];
+  if (typeof token !== 'string' || !token) return null;
+  const found = await sessionsService.resolve(token, res);
+  if (!found || found.user.mustChangePassword) return null;
+  const address = addressOf(found.user);
+  if (!appsOf(found.user).chat || !address) return 'no-access';
+  let user = await collections.chatUsers().findOne({ email: address, kind: 'team' });
+  if (!user || user.status !== 'active') {
+    await chatService.syncTeam();
+    user = await collections.chatUsers().findOne({ email: address, kind: 'team' });
+  }
+  if (!user || user.status !== 'active') return 'no-access';
+  return { id: found.session.id, user, mailPassword: found.session.password };
+}
+
+/** Requires a Muvance Chat sign-in (a teammate's account, or a guest's) on `req.chatSession`. */
+export const requireChatSession: RequestHandler = async (req, res, next) => {
+  try {
+    const guest = await guestSession(req, res);
+    if (guest) {
+      req.chatSession = guest;
+      return next();
+    }
+    const team = await teamSession(req, res);
+    if (team === 'no-access') {
+      return next(
+        HttpError.forbidden(
+          "Your Muvance account doesn't have access to Chat. Ask an admin if you need it.",
+        ),
+      );
+    }
+    if (!team) return next(HttpError.unauthorized());
+    req.chatSession = team;
+    next();
+  } catch (error) {
+    next(error);
+  }
 };
 
 export function chatSession(req: Request) {

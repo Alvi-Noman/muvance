@@ -24,6 +24,7 @@ export default tseslint.config(
       'apps/meet/**/*.{ts,tsx}',
       'apps/mail/**/*.{ts,tsx}',
       'apps/chat/**/*.{ts,tsx}',
+      'apps/accounts/**/*.{ts,tsx}',
     ],
     languageOptions: { globals: globals.browser },
     plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },

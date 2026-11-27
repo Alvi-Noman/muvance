@@ -9,7 +9,8 @@ export function useMe() {
     queryFn: async () => {
       try {
         const me = await api.get<MeDto>('/auth/me');
-        return me.mustChangePassword ? null : me;
+        // Hosting needs Meet on their Muvance account; anyone else joins as a guest.
+        return me.mustChangePassword || !me.apps.meet ? null : me;
       } catch (error) {
         if (error instanceof ApiClientError && error.status === 401) return null;
         throw error;
@@ -24,7 +25,8 @@ export function useSignIn() {
   return useMutation({
     mutationFn: (input: { identifier: string; password: string }) =>
       api.post<MeDto>('/auth/login', input),
-    onSuccess: (me) => queryClient.setQueryData(['me'], me.mustChangePassword ? null : me),
+    onSuccess: (me) =>
+      queryClient.setQueryData(['me'], me.mustChangePassword || !me.apps.meet ? null : me),
   });
 }
 

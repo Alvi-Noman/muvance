@@ -2,6 +2,7 @@ import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router';
+import { account, accountsUrl } from '@/lib/account';
 import { ApiClientError, errorMessage, setSignedOutHandler } from '@/lib/api';
 import { keys, useBootstrap } from '@/lib/data';
 import { ChatApp } from '@/pages/ChatApp';
@@ -36,6 +37,9 @@ function Root() {
   }, [qc]);
 
   if (error instanceof ApiClientError && error.status === 401) return <LoginPage />;
+  if (error instanceof ApiClientError && error.status === 403) {
+    return <NoChatAccess message={error.message} />;
+  }
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -55,6 +59,38 @@ function Root() {
     );
   }
   return <ChatApp />;
+}
+
+/** A Muvance account without Chat (or still on a starting password). */
+function NoChatAccess({ message }: { message: string }) {
+  const qc = useQueryClient();
+  const choosePassword = /password/i.test(message);
+  useEffect(() => {
+    if (choosePassword) window.location.assign(accountsUrl());
+  }, [choosePassword]);
+  if (choosePassword) return null;
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+      <p className="text-lg font-semibold">Chat isn't part of your Muvance account</p>
+      <p className="max-w-sm text-sm text-muted">{message}</p>
+      <div className="mt-2 flex gap-2">
+        <a href={accountsUrl()}>
+          <Button>Your Muvance account</Button>
+        </a>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            void account
+              .logout()
+              .catch(() => {})
+              .then(() => qc.resetQueries({ queryKey: keys.bootstrap }))
+          }
+        >
+          Sign in as someone else
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 const router = createBrowserRouter([

@@ -4,6 +4,7 @@ import { Camera, Copy, Download, Link2, Smartphone, Trash2 } from 'lucide-react'
 import type { ChatGuestDto, ChatMeDto } from '@muvance/shared';
 import { api, errorMessage } from '@/lib/api';
 import { squareAvatar } from '@/lib/avatar-image';
+import { accountsUrl } from '@/lib/account';
 import { keys, patchBootstrap, patchPerson, useChat } from '@/lib/data';
 import {
   ANDROID_APP_URL,
@@ -178,10 +179,18 @@ function ProfileTab() {
           <ChangePassword />
         </>
       ) : (
-        <p className="rounded-xl bg-canvas p-3.5 text-sm text-muted">
-          Your name comes from your Muvance email account, and your password is your email password
-          (change it in Muvance Mail). Your picture is the same as in Muvance Mail.
-        </p>
+        <div className="flex items-center justify-between gap-4 rounded-xl bg-canvas p-3.5">
+          <p className="text-sm text-muted">
+            Your name, picture and password are your Muvance account's: the same in Mail, Meet and
+            the Admin CRM.
+          </p>
+          <a
+            href={accountsUrl()}
+            className="shrink-0 rounded-lg border border-line bg-white px-3 py-1.5 text-sm font-medium hover:bg-black/[0.03]"
+          >
+            Manage
+          </a>
+        </div>
       )}
     </div>
   );

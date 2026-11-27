@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import { account } from '@/lib/account';
 import { api } from '@/lib/api';
 import { useChat } from '@/lib/data';
 import { useConnection, useLiveUpdates } from '@/lib/live';
@@ -70,7 +71,8 @@ export function ChatApp() {
 
   const signOut = async () => {
     await stopPushForSignOut();
-    await api.post('/logout').catch(() => {});
+    // Teammates sign out of their Muvance account; clients out of chat.
+    await (me.kind === 'team' ? account.logout() : api.post('/logout')).catch(() => {});
     qc.clear();
     navigate('/', { replace: true });
     await qc.resetQueries();

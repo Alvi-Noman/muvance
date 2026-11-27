@@ -73,6 +73,9 @@ jobs:
           - image: chat
             file: docker/spa.Dockerfile
             app: chat
+          - image: accounts
+            file: docker/spa.Dockerfile
+            app: accounts
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

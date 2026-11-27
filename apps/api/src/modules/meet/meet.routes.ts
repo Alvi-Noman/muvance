@@ -21,7 +21,8 @@ import { rateLimit } from 'express-rate-limit';
 import { isTest } from '@/config/env';
 import { collections, isDuplicateKeyError } from '@/db/client';
 import type { MeetJoinRequestDoc, MeetRoomDoc, UserDoc } from '@/db/types';
-import { currentUser, requireAuth } from '@/middlewares/auth';
+import { currentUser, requireApp, requireAuth } from '@/middlewares/auth';
+import { appsOf } from '@/modules/auth/account';
 import { validateBody } from '@/middlewares/validate';
 import { SESSION_COOKIE, sessionsService } from '@/modules/auth/sessions.service';
 import { HttpError } from '@/utils/http-error';
@@ -81,8 +82,10 @@ async function findRoom(req: Request) {
 async function optionalUser(req: Request, res: Response): Promise<UserDoc | null> {
   const token: unknown = req.cookies?.[SESSION_COOKIE];
   if (typeof token !== 'string' || !token) return null;
-  const user = await sessionsService.resolve(token, res);
-  return user && !user.mustChangePassword ? user : null;
+  const found = await sessionsService.resolve(token, res);
+  // Hosting needs Meet on their Muvance account; anyone else joins as a guest.
+  if (!found || found.user.mustChangePassword || !appsOf(found.user).meet) return null;
+  return found.user;
 }
 
 async function assertNotFull(code: string, identity?: string) {
@@ -111,30 +114,36 @@ async function admittedResult(
 
 // --- Team: create and list meetings -------------------------------------------------------
 
-meetRouter.post('/rooms', requireAuth, validateBody(createMeetRoomSchema), async (req, res) => {
-  const user = currentUser(req);
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const room: MeetRoomDoc = {
-      _id: new ObjectId(),
-      code: newCode(),
-      title: req.body.title || null,
-      createdBy: user._id,
-      createdByName: user.name,
-      quickAccess: false,
-      createdAt: new Date(),
-      lastJoinedAt: null,
-    };
-    try {
-      await collections.meetRooms().insertOne(room);
-      return res.status(201).json(toRoomDto(room));
-    } catch (error) {
-      if (!isDuplicateKeyError(error)) throw error;
+meetRouter.post(
+  '/rooms',
+  requireAuth,
+  requireApp('meet'),
+  validateBody(createMeetRoomSchema),
+  async (req, res) => {
+    const user = currentUser(req);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const room: MeetRoomDoc = {
+        _id: new ObjectId(),
+        code: newCode(),
+        title: req.body.title || null,
+        createdBy: user._id,
+        createdByName: user.name,
+        quickAccess: false,
+        createdAt: new Date(),
+        lastJoinedAt: null,
+      };
+      try {
+        await collections.meetRooms().insertOne(room);
+        return res.status(201).json(toRoomDto(room));
+      } catch (error) {
+        if (!isDuplicateKeyError(error)) throw error;
+      }
     }
-  }
-  throw new HttpError(500, 'Could not create a meeting. Please try again.');
-});
+    throw new HttpError(500, 'Could not create a meeting. Please try again.');
+  },
+);
 
-meetRouter.get('/rooms', requireAuth, async (req, res) => {
+meetRouter.get('/rooms', requireAuth, requireApp('meet'), async (req, res) => {
   const rooms = await collections
     .meetRooms()
     .find({ createdBy: currentUser(req)._id })
@@ -235,7 +244,7 @@ meetRouter.delete('/rooms/:code/requests/:id', async (req, res) => {
 
 // --- Hosts (team members) in the call ------------------------------------------------------
 
-meetRouter.get('/rooms/:code/requests', requireAuth, async (req, res) => {
+meetRouter.get('/rooms/:code/requests', requireAuth, requireApp('meet'), async (req, res) => {
   const code = codeParam(req);
   const requests = await collections
     .meetJoinRequests()
@@ -258,6 +267,7 @@ meetRouter.get('/rooms/:code/requests', requireAuth, async (req, res) => {
 meetRouter.post(
   '/rooms/:code/requests/:id/decision',
   requireAuth,
+  requireApp('meet'),
   validateBody(meetDecisionSchema),
   async (req, res) => {
     const code = codeParam(req);
@@ -276,6 +286,7 @@ meetRouter.post(
 meetRouter.patch(
   '/rooms/:code',
   requireAuth,
+  requireApp('meet'),
   validateBody(updateMeetRoomSchema),
   async (req, res) => {
     const room = await findRoom(req);
@@ -306,6 +317,7 @@ meetRouter.patch(
 meetRouter.post(
   '/rooms/:code/participants/:identity/mute',
   requireAuth,
+  requireApp('meet'),
   validateBody(meetMuteSchema),
   async (req, res) => {
     const code = codeParam(req);
@@ -344,18 +356,23 @@ meetRouter.post(
   },
 );
 
-meetRouter.delete('/rooms/:code/participants/:identity', requireAuth, async (req, res) => {
-  const code = codeParam(req);
-  const identity = String(req.params.identity);
-  await livekit.remove(code, identity);
-  // A removed guest can't walk back in on their old admission.
-  await collections
-    .meetJoinRequests()
-    .updateMany({ code, identity }, { $set: { status: 'denied', decidedAt: new Date() } });
-  res.status(204).end();
-});
+meetRouter.delete(
+  '/rooms/:code/participants/:identity',
+  requireAuth,
+  requireApp('meet'),
+  async (req, res) => {
+    const code = codeParam(req);
+    const identity = String(req.params.identity);
+    await livekit.remove(code, identity);
+    // A removed guest can't walk back in on their old admission.
+    await collections
+      .meetJoinRequests()
+      .updateMany({ code, identity }, { $set: { status: 'denied', decidedAt: new Date() } });
+    res.status(204).end();
+  },
+);
 
-meetRouter.post('/rooms/:code/end', requireAuth, async (req, res) => {
+meetRouter.post('/rooms/:code/end', requireAuth, requireApp('meet'), async (req, res) => {
   const code = codeParam(req);
   await callRecordingsService.stop(code);
   await livekit.end(code);
@@ -372,13 +389,13 @@ meetRouter.get('/rooms/:code/recording', async (req, res) => {
   res.json(await callRecordingsService.stateFor(codeParam(req)));
 });
 
-meetRouter.post('/rooms/:code/recording', requireAuth, async (req, res) => {
+meetRouter.post('/rooms/:code/recording', requireAuth, requireApp('meet'), async (req, res) => {
   const room = await findRoom(req);
   await callRecordingsService.start(room.code, room.title, currentUser(req));
   res.status(201).json(await callRecordingsService.stateFor(room.code));
 });
 
-meetRouter.delete('/rooms/:code/recording', requireAuth, async (req, res) => {
+meetRouter.delete('/rooms/:code/recording', requireAuth, requireApp('meet'), async (req, res) => {
   const code = codeParam(req);
   await callRecordingsService.stop(code);
   res.json(await callRecordingsService.stateFor(code));

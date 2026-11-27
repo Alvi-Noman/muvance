@@ -2,7 +2,6 @@ import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Binary, ObjectId } from 'mongodb';
 import type {
-  CreateMailAccountInput,
   MailAccountDto,
   MailAccountsDto,
   MailAddressDto,
@@ -14,8 +13,7 @@ import { env } from '@/config/env';
 import { collections, isDuplicateKeyError } from '@/db/client';
 import type { MailAccountDoc, MailAddressDoc, UserDoc } from '@/db/types';
 import { logger } from '@/lib/logger';
-import { sha512Crypt, verifySha512Crypt } from '@/lib/sha512-crypt';
-import { webmailSessions } from '@/modules/webmail/session';
+import { sha512Crypt } from '@/lib/sha512-crypt';
 import { HttpError } from '@/utils/http-error';
 
 /** Addresses every mail domain should have; they go to the first mailbox unless taken. */
@@ -121,14 +119,24 @@ export const mailService = {
    * checks them every couple of seconds and applies changes on its own.
    */
   async sync() {
-    const [accounts, addresses] = await Promise.all([
+    const [all, addresses, disabled] = await Promise.all([
       collections
         .mailAccounts()
         .find({}, { projection: withoutAvatarBytes })
         .sort({ createdAt: 1 })
         .toArray(),
       collections.mailAddresses().find().toArray(),
+      collections
+        .users()
+        .find(
+          { status: 'disabled', mailAccountId: { $type: 'objectId' } },
+          { projection: { mailAccountId: 1 } },
+        )
+        .toArray(),
     ]);
+    // A disabled Muvance account's mailbox can't be signed in to (its mail is kept).
+    const off = new Set(disabled.map((u) => u.mailAccountId!.toHexString()));
+    const accounts = all.filter((a) => !off.has(a._id.toHexString()));
     const domain = env.MAIL_DOMAIN;
     const used = new Set([
       ...accounts.map((a) => a.localPart),
@@ -186,18 +194,30 @@ export const mailService = {
     };
   },
 
-  async create(input: CreateMailAccountInput, by: UserDoc) {
-    await assertFree(input.localPart);
+  /** Throws if a mailbox or shared address already uses this name. */
+  assertFree,
+
+  /**
+   * A Muvance account's mailbox: the account's address and password (they stay the same as the
+   * account's from then on). Made from the admin's People page, never on its own.
+   */
+  async createForAccount(
+    user: Pick<UserDoc, '_id' | 'email' | 'name' | 'usernameKey'>,
+    password: string,
+    by: Pick<UserDoc, '_id' | 'name'>,
+  ) {
+    const address = user.email!;
+    const localPart = address.split('@')[0]!;
+    await assertFree(localPart);
     const now = new Date();
     const doc: MailAccountDoc = {
       _id: new ObjectId(),
-      localPart: input.localPart,
-      address: `${input.localPart}@${env.MAIL_DOMAIN}`,
-      name: input.name,
-      senderName: input.senderName || undefined,
-      passwordHash: sha512Crypt(input.password),
-      mustChangePassword: true,
-      quotaGb: input.quotaGb,
+      localPart,
+      address,
+      name: user.name,
+      passwordHash: sha512Crypt(password),
+      mustChangePassword: false,
+      quotaGb: 10,
       createdBy: by._id,
       createdByName: by.name,
       createdAt: now,
@@ -209,6 +229,9 @@ export const mailService = {
       if (isDuplicateKeyError(error)) throw HttpError.conflict(`${doc.address} already exists.`);
       throw error;
     }
+    await collections
+      .users()
+      .updateOne({ _id: user._id }, { $set: { mailAccountId: doc._id, updatedAt: now } });
     await this.sync();
     return doc;
   },
@@ -236,35 +259,14 @@ export const mailService = {
   },
 
   /**
-   * Sets a new password and signs the person out of webmail everywhere. An admin's reset makes them
-   * choose their own at next sign-in.
-   */
-  async setPassword(id: ObjectId, password: string, { byOwner = false } = {}) {
-    const doc = await this.get(id);
-    await collections.mailAccounts().updateOne(
-      { _id: id },
-      {
-        $set: {
-          passwordHash: sha512Crypt(password),
-          mustChangePassword: !byOwner,
-          updatedAt: new Date(),
-        },
-      },
-    );
-    await this.sync();
-    await webmailSessions.destroyAll(doc.address);
-  },
-
-  /**
    * Removes the mailbox from the mail server: the address stops receiving and nobody can sign in.
    * The person is taken off any shared addresses. Their stored mail stays on the server's disk.
    */
   async remove(id: ObjectId) {
-    const doc = await this.get(id);
+    await this.get(id);
     await collections.mailAccounts().deleteOne({ _id: id });
     await collections.mailAddresses().updateMany({ ownerIds: id }, { $pull: { ownerIds: id } });
     await this.sync();
-    await webmailSessions.destroyAll(doc.address);
   },
 
   /* Shared addresses ------------------------------------------------------------------------ */
@@ -333,13 +335,5 @@ export const mailService = {
     const doc = await collections.mailAccounts().findOne(filter, { projection: { avatar: 1 } });
     if (!doc?.avatar) throw HttpError.notFound('No picture');
     return doc.avatar;
-  },
-
-  /** Webmail's "change password": the person proves the current one first. */
-  async changeOwnPassword(address: string, current: string, next: string) {
-    const doc = await collections.mailAccounts().findOne({ address: address.trim().toLowerCase() });
-    if (!doc || !verifySha512Crypt(current, doc.passwordHash)) return false;
-    await this.setPassword(doc._id, next, { byOwner: true });
-    return true;
   },
 };

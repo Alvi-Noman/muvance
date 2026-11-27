@@ -9,7 +9,7 @@ import type {
 import { collections } from '@/db/client';
 import { firstLink, isPrivateAddress, parsePreview } from '@/modules/chat/previews';
 import { pushTransport, type ChatPushPayload } from '@/modules/chat/push';
-import { app, signedIn } from './helpers';
+import { muvancePerson, signedIn } from './helpers';
 
 vi.mock('@/modules/chat/mailer', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/modules/chat/mailer')>();
@@ -30,21 +30,10 @@ beforeAll(async () => {
 });
 
 async function teammate(localPart: string) {
-  const res = await admin.post('/api/mail-accounts').send({
-    localPart,
-    name: `${localPart[0]!.toUpperCase()}${localPart.slice(1)} Rahman`,
-    password: 'mailbox-password-1',
-  });
-  expect(res.status).toBe(201);
-  await collections
-    .mailAccounts()
-    .updateOne({ localPart }, { $set: { mustChangePassword: false } });
-  const agent = request.agent(app);
-  const login = await agent
-    .post('/api/chat/login')
-    .send({ email: localPart, password: 'mailbox-password-1' });
-  expect(login.status).toBe(200);
-  return { agent, id: login.body.id as string };
+  const { agent } = await muvancePerson(admin, localPart);
+  const me = await agent.get('/api/chat/me');
+  expect(me.status).toBe(200);
+  return { agent, id: me.body.id as string };
 }
 
 async function bootstrap(agent: request.Agent) {
@@ -142,7 +131,7 @@ describe('Message tools', () => {
       .send({ spaceIds: [to.id] });
     expect(res.status).toBe(201);
     const copy = res.body.messages[0] as ChatMessageDto;
-    expect(copy).toMatchObject({ spaceId: to.id, forwarded: true, text: 'For @Tara Rahman' });
+    expect(copy).toMatchObject({ spaceId: to.id, forwarded: true, text: 'For @Tara Khan' });
     expect(copy.attachments[0]).toMatchObject({ voice: true, durationMs: 4200 });
     expect(copy.attachments[0]!.id).not.toBe(upload.body.id);
     const file = await a.agent.get(`/api/chat/files/${copy.attachments[0]!.id}`);
@@ -232,7 +221,7 @@ describe('Status, do not disturb and push notifications', () => {
       'https://push.example/gone-b',
     ]);
     expect(pushes[0]!.payload).toMatchObject({
-      title: 'Zain Rahman in Pushy',
+      title: 'Zain Khan in Pushy',
       body: 'Launch moved to Friday',
       spaceId: space.id,
     });
@@ -249,7 +238,7 @@ describe('Status, do not disturb and push notifications', () => {
     await send(a.agent, space.id, { text: 'Small update' });
     await send(a.agent, space.id, { text: `<@${b.id}> please check` });
     await vi.waitFor(() => expect(pushes.length).toBe(1));
-    expect(pushes[0]!.payload.body).toBe('@Zoya Rahman please check');
+    expect(pushes[0]!.payload.body).toBe('@Zoya Khan please check');
 
     await b.agent.post('/api/chat/push/unsubscribe').send({ endpoint: 'https://push.example/b' });
     expect(

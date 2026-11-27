@@ -3,6 +3,7 @@ import { env } from './config/env';
 import { closeDb, connectDb } from './db/client';
 import { seedDevOwner } from './db/seed-dev';
 import { logger } from './lib/logger';
+import { accounts } from './modules/auth/account';
 import { mailService } from './modules/mail/mail.service';
 import { chatAlerts } from './modules/chat/alerts';
 import { hub } from './modules/chat/hub';
@@ -12,6 +13,10 @@ import { recordingsService } from './modules/recordings/recordings.service';
 async function main() {
   await connectDb();
   if (env.MONGODB_URI === 'memory') await seedDevOwner();
+  // Admin users and mailboxes become Muvance accounts (once; safe on every start).
+  await accounts
+    .migrate()
+    .catch((error: unknown) => logger.error({ err: error }, 'Could not set up Muvance accounts'));
   await mailService
     .sync()
     .catch((error: unknown) => logger.warn({ err: error }, 'Could not write mail server accounts'));

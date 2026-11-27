@@ -33,10 +33,10 @@ export function LoginPage() {
           Welcome <em>back.</em>
         </>
       }
-      description="Sign in to manage leads and bookings."
+      description="Sign in with your Muvance account. The same one works for Mail, Chat and Meet."
     >
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Email or username">
+        <Field label="Username or email">
           {(props) => (
             <Input
               {...props}
@@ -71,7 +71,7 @@ export function LoginPage() {
           Sign in
         </Button>
         <p className="text-center text-xs text-neutral-500">
-          Forgot your password? Ask an owner or admin for a reset link.
+          Forgot your password? Ask an owner or admin for a password link.
         </p>
       </form>
     </AuthLayout>

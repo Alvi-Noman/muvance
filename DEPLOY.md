@@ -3,15 +3,16 @@
 Production runs as Docker containers on a VPS that Muvance has to itself. Caddy owns ports 80/443,
 gets HTTPS certificates for every domain automatically, and passes each one to its container:
 
-| Container | What it serves                                                      |
-| --------- | ------------------------------------------------------------------- |
-| `caddy`   | HTTPS, routes each domain to its container, and `/api/*` to the API |
-| `web`     | The public website (`muvance.com`)                                  |
-| `admin`   | The CRM (`admin.muvance.com`)                                       |
-| `meet`    | Video meetings (`meet.muvance.com`)                                 |
-| `chat`    | Muvance Chat, team and client conversations (`chat.muvance.com`)    |
-| `livekit` | The media server behind meetings (audio, video, screens)            |
-| `api`     | Node.js API (bookings, auth, CRM, meetings), talks to MongoDB       |
+| Container  | What it serves                                                       |
+| ---------- | -------------------------------------------------------------------- |
+| `caddy`    | HTTPS, routes each domain to its container, and `/api/*` to the API  |
+| `web`      | The public website (`muvance.com`)                                   |
+| `admin`    | The CRM (`admin.muvance.com`)                                        |
+| `meet`     | Video meetings (`meet.muvance.com`)                                  |
+| `chat`     | Muvance Chat, team and client conversations (`chat.muvance.com`)     |
+| `accounts` | Muvance Account: sign-in, password and apps (`accounts.muvance.com`) |
+| `livekit`  | The media server behind meetings (audio, video, screens)             |
+| `api`      | Node.js API (bookings, auth, CRM, meetings), talks to MongoDB        |
 
 The database is **MongoDB Atlas** (managed, backed up), not a container on the VPS.
 
@@ -37,7 +38,8 @@ test then checks all three sites.
 Ubuntu 24.04 with 2 vCPU and 4 GB RAM is plenty (video calls of 5 people are light for LiveKit).
 
 1. Point DNS **A records** for `muvance.com`, `www.muvance.com`, `admin.muvance.com`,
-   `meet.muvance.com`, `mail.muvance.com` and `chat.muvance.com` to the VPS IP.
+   `meet.muvance.com`, `mail.muvance.com`, `chat.muvance.com` and `accounts.muvance.com` to the VPS
+   IP.
 2. Install Docker and allow SSH through the firewall:
 
    ```sh
@@ -120,6 +122,27 @@ docker compose --env-file .env.production -f compose.production.yml exec -it api
 ```
 
 Anyone can add or change a username later under **Settings**, and sign in with either.
+
+## Muvance accounts (accounts.muvance.com)
+
+Everyone on the team has **one Muvance account**: their @muvance.com address and one password, for
+every app they're allowed: the Admin CRM, Mail, Chat and Meet. Signing in on any of them signs you in
+on all of them (one cookie for the whole domain, `COOKIE_DOMAIN`), like a Google account.
+
+- **Admins manage people** in the Admin CRM's **People** page: add someone (name, username = their
+  address, which apps, their Admin CRM role), switch apps on or off, disable them (signs them out of
+  everything, mail included), or make a password link.
+- **Mail** switched on makes their mailbox; switched off removes it from the mail server (the mail
+  already there stays on disk). The mailbox always has the account's password, so phone mail apps
+  use the same one.
+- **Passwords:** new people get a link to choose theirs (or a starting password they must change).
+  Changing it at accounts.muvance.com changes it everywhere.
+- **Signing in:** username (`alvi`), address (`alvi@muvance.com`) or, for older accounts, the email
+  they used before. Clients (chat guests) keep their own chat sign-in.
+- **From before:** on start, the API joins each mailbox to the admin user with the same address or
+  username, or makes it an account of its own (Mail, Chat and Meet). Each person's first sign-in with
+  either old password makes it their one password. An older account still on an outside email can be
+  given its address on the People page ("Give address"), which merges the mailbox's account into it.
 
 ## Meetings (meet.muvance.com)
 

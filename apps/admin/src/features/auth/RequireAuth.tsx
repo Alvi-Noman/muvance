@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import type { Permission } from '@muvance/shared';
 import { Navigate, useLocation } from 'react-router';
+import { Button } from '@/components/ui/Button';
 import { EmptyState, PageLoader } from '@/components/ui/misc';
-import { useMe } from './auth';
+import { accountsUrl } from '@/lib/accounts';
+import { useLogout, useMe } from './auth';
 import { SetPasswordPage } from './SetPasswordPage';
 
 /** Sends signed-out visitors to /login (and back here afterwards). */
@@ -25,7 +27,30 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
   }
   if (me.mustChangePassword) return <SetPasswordPage />;
+  if (!me.apps.admin) return <NoAdminAccess name={me.name} />;
   return children;
+}
+
+/** Signed in, but this Muvance account doesn't include the Admin CRM. */
+function NoAdminAccess({ name }: { name: string }) {
+  const logout = useLogout();
+  return (
+    <EmptyState
+      className="min-h-dvh justify-center"
+      title={`Hi ${name.split(' ')[0]}, the Admin CRM isn't part of your account`}
+      description="Your Muvance account works for your other apps. Ask an owner or admin if you need the Admin CRM."
+      action={
+        <div className="flex flex-wrap justify-center gap-2">
+          <a href={accountsUrl()}>
+            <Button>Your Muvance account</Button>
+          </a>
+          <Button variant="secondary" onClick={() => logout.mutate()}>
+            Sign in as someone else
+          </Button>
+        </div>
+      }
+    />
+  );
 }
 
 /** Renders children only when the signed-in user has `permission`. */

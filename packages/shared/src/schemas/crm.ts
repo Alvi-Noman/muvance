@@ -45,6 +45,36 @@ export function can(role: Role, permission: Permission) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Muvance accounts: one sign-in for every app                         */
+/* ------------------------------------------------------------------ */
+
+export const muvanceApps = ['admin', 'mail', 'chat', 'meet'] as const;
+export type MuvanceApp = (typeof muvanceApps)[number];
+/** Which apps a Muvance account may use. */
+export type AppAccess = Record<MuvanceApp, boolean>;
+
+export const appLabels: Record<MuvanceApp, string> = {
+  admin: 'Admin CRM',
+  mail: 'Mail',
+  chat: 'Chat',
+  meet: 'Meet',
+};
+
+export const appDescriptions: Record<MuvanceApp, string> = {
+  admin: 'Leads, meetings and the team (with the role below).',
+  mail: 'Their own @muvance.com mailbox.',
+  chat: 'Team and client conversations.',
+  meet: 'Start and host video meetings.',
+};
+
+export const appAccessSchema = z.object({
+  admin: z.boolean(),
+  mail: z.boolean(),
+  chat: z.boolean(),
+  meet: z.boolean(),
+});
+
+/* ------------------------------------------------------------------ */
 /* Pipeline                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -203,21 +233,30 @@ export const inviteUserSchema = z.object({
   role: z.enum(roles),
 });
 
-/** An admin adds someone directly, with a starting password they must replace. */
+/**
+ * An admin adds someone: their username is also their address (alvi → alvi@muvance.com). With a
+ * starting password they must replace it; without one, they get a link to choose their own.
+ */
 export const createUserSchema = z.object({
+  name: z.string().trim().min(1, 'Enter their name').max(100),
   username: usernameSchema,
-  email: z.email('Enter a valid email').transform((e) => e.toLowerCase()),
-  password,
+  password: password.optional(),
   role: z.enum(roles),
+  apps: appAccessSchema,
 });
+
+/** Gives an account without one a Muvance address (merging the mailbox's account if it has one). */
+export const setAddressSchema = z.object({ username: usernameSchema });
 
 /** A phone's push token, saved by the Android app. */
 export const deviceTokenSchema = z.object({ token: z.string().min(20).max(4096) });
 
 export const updateUserSchema = z
   .object({
+    name: z.string().trim().min(1, 'Enter their name').max(100),
     role: z.enum(roles),
     status: z.enum(['active', 'disabled']),
+    apps: appAccessSchema,
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'Nothing to update');
@@ -508,10 +547,22 @@ export interface UserDto {
   status: UserStatus;
   createdAt: string;
   lastLoginAt: string | null;
+  /** Their @muvance.com address (their Muvance account), or null for older accounts without one. */
+  address: string | null;
+  /** The apps they may use. */
+  apps: AppAccess;
+  /** Their mailbox's picture, if any. */
+  avatarUrl: string | null;
 }
 
 export interface MeDto extends UserDto {
   permissions: Permission[];
+}
+
+/** A new account, and the link to share so they choose their password (when none was set). */
+export interface CreateUserResultDto {
+  user: UserDto;
+  link: InviteLinkDto | null;
 }
 
 export interface InviteDto {

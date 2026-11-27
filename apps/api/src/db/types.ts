@@ -3,6 +3,7 @@ import type {
   ActivityType,
   Application,
   ApplicationStatus,
+  AppAccess,
   AvailabilitySettings,
   DiscoveryDto,
   LeadStage,
@@ -33,6 +34,15 @@ export interface UserDoc {
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt: Date | null;
+  /**
+   * Muvance account: their mailbox (whose address is their `email`). The mailbox's password is
+   * kept the same as the account's, so phone mail apps use it too.
+   */
+  mailAccountId?: ObjectId | null;
+  /** The apps they may use. Older accounts without it: see `appsOf`. */
+  apps?: AppAccess;
+  /** The email they used before getting a Muvance address; still accepted at sign-in. */
+  contactEmail?: string | null;
 }
 
 /** A phone with the Android app, which gets a push when a new lead books. */
@@ -53,6 +63,11 @@ export interface SessionDoc {
   expiresAt: Date;
   userAgent: string;
   ip: string;
+  /**
+   * The account password, AES-256-GCM encrypted (WEBMAIL_SECRET): Mail opens the mailbox with it,
+   * and Chat sends client emails from the person's own address.
+   */
+  passwordEnc?: string | null;
 }
 
 /** A one-time link: either a team invite or a password reset. */

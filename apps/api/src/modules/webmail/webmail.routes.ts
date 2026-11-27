@@ -10,9 +10,7 @@ import {
   webmailDeleteSchema,
   webmailFlagsSchema,
   webmailIdentitySchema,
-  webmailLoginSchema,
   webmailMoveSchema,
-  webmailPasswordSchema,
   webmailSettingsSchema,
   type WebmailComposeInput,
   type WebmailContact,
@@ -25,9 +23,7 @@ import {
 } from '@muvance/shared';
 import { env } from '@/config/env';
 import { collections } from '@/db/client';
-import { loginLimiter } from '@/middlewares/rate-limit';
 import { validateBody } from '@/middlewares/validate';
-import { verifySha512Crypt } from '@/lib/sha512-crypt';
 import { mailService, senderNameOf, webmailAvatarUrl } from '@/modules/mail/mail.service';
 import { sendAvatar } from '@/modules/mail/send-avatar';
 import { HttpError } from '@/utils/http-error';
@@ -41,7 +37,7 @@ import {
   toAddresses,
   withImap,
 } from './imap';
-import { mailSession, requireMailSession, webmailSessions, type MailSession } from './session';
+import { mailSession, requireMailSession, type MailSession } from './session';
 
 /** Muvance Mail, the webmail at mail.muvance.com. */
 export const webmailRouter = Router();
@@ -102,24 +98,7 @@ const folderParam = (req: Request) => {
   return folder;
 };
 
-// --- Sign-in ------------------------------------------------------------------------------
-
-webmailRouter.post('/login', loginLimiter, validateBody(webmailLoginSchema), async (req, res) => {
-  let { email } = req.body as { email: string; password: string };
-  const { password } = req.body as { password: string };
-  if (!email.includes('@')) email = `${email}@${env.MAIL_DOMAIN}`;
-  const account = await collections.mailAccounts().findOne({ address: email });
-  if (!account || !verifySha512Crypt(password, account.passwordHash)) {
-    throw HttpError.unauthorized('Wrong email or password.');
-  }
-  await webmailSessions.create(account.address, password, res);
-  res.json({ address: account.address });
-});
-
-webmailRouter.post('/logout', async (req, res) => {
-  await webmailSessions.destroy(req, res);
-  res.status(204).end();
-});
+// Signing in and out is the Muvance account's (/api/auth).
 
 webmailRouter.use(requireMailSession);
 
@@ -208,21 +187,6 @@ webmailRouter.get('/team-avatars', async (_req, res) => {
 
 webmailRouter.get('/avatars/:address', async (req, res) => {
   sendAvatar(res, await mailService.avatar({ address: String(req.params.address).toLowerCase() }));
-});
-
-webmailRouter.post('/password', validateBody(webmailPasswordSchema), async (req, res) => {
-  const session = mailSession(req);
-  const { current, next } = req.body as { current?: string; next: string };
-  const account = await collections.mailAccounts().findOne({ address: session.address });
-  // Right after signing in with an admin-set password, this session already proves it.
-  const proof = current || (account?.mustChangePassword ? session.password : '');
-  if (next === proof)
-    throw HttpError.badRequest('Choose a password different from the current one.');
-  const changed = await mailService.changeOwnPassword(session.address, proof, next);
-  if (!changed) throw HttpError.forbidden('Your current password is wrong.');
-  // Every webmail sign-in ended with the change; keep this one signed in with the new password.
-  await webmailSessions.create(session.address, next, res);
-  res.status(204).end();
 });
 
 // --- Folders and messages -----------------------------------------------------------------

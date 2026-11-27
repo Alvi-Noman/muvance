@@ -48,6 +48,9 @@ jobs:
           - image: chat
             file: docker/spa.Dockerfile
             app: chat
+          - image: accounts
+            file: docker/spa.Dockerfile
+            app: accounts
     steps:
       - uses: actions/checkout@v4
         with:
@@ -129,7 +132,7 @@ jobs:
           SITE: ${{ vars.SITE_DOMAIN }}
           ADMIN: ${{ vars.ADMIN_DOMAIN }}
         run: |
-          for url in "https://$SITE/" "https://$SITE/api/health" "https://$ADMIN/" "https://$ADMIN/api/health" "https://meet.$SITE/" "https://meet.$SITE/api/health" "https://mail.$SITE/"; do
+          for url in "https://$SITE/" "https://$SITE/api/health" "https://$ADMIN/" "https://$ADMIN/api/health" "https://meet.$SITE/" "https://meet.$SITE/api/health" "https://mail.$SITE/" "https://chat.$SITE/" "https://chat.$SITE/api/health"; do
             curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-all-errors -o /dev/null "$url"
             echo "OK $url"
           done

@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Eye, EyeOff, Lock } from 'lucide-react';
-import { api, errorMessage } from '@/lib/api';
+import { account, accountsUrl } from '@/lib/account';
+import { errorMessage } from '@/lib/api';
 import { LogoMark, Spinner } from '@/components/ui';
 
 export function LoginPage() {
@@ -17,7 +18,12 @@ export function LoginPage() {
     setBusy(true);
     setError('');
     try {
-      await api.post('/login', { email, password });
+      const me = await account.login(email, password);
+      // A starting password from an admin: choose your own on the account page, then come back.
+      if (me.mustChangePassword) {
+        window.location.assign(accountsUrl());
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ['me'] });
     } catch (err) {
       setError(errorMessage(err));
@@ -72,11 +78,13 @@ export function LoginPage() {
             <LogoMark className="w-8" />
             <span className="font-logo text-lg font-semibold tracking-[-0.03em]">Muvance Mail</span>
           </div>
-          <h2 className="text-2xl font-semibold tracking-tight">Sign in to your inbox</h2>
-          <p className="mt-1.5 text-sm text-muted">Use your @muvance.com address.</p>
+          <h2 className="text-2xl font-semibold tracking-tight">Sign in</h2>
+          <p className="mt-1.5 text-sm text-muted">
+            with your Muvance account. The same one works for Chat, Meet and the Admin CRM.
+          </p>
 
           <label className="mt-8 block">
-            <span className="text-sm font-medium">Email</span>
+            <span className="text-sm font-medium">Username or email</span>
             <div className="mt-1.5 flex h-11 items-center rounded-xl border border-line bg-white pr-3 transition focus-within:border-ink focus-within:ring-4 focus-within:ring-black/5">
               <input
                 value={email}
@@ -127,7 +135,8 @@ export function LoginPage() {
           </button>
 
           <p className="mt-8 flex items-center gap-2 text-xs text-muted">
-            <Lock className="size-3.5" /> Forgot your password? Ask a Muvance admin to reset it.
+            <Lock className="size-3.5" /> Forgot your password? Ask a Muvance admin for a password
+            link.
           </p>
         </form>
       </main>

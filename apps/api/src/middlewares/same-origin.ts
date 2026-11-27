@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express';
-import { env } from '@/config/env';
+import { env, isProduction } from '@/config/env';
 import { HttpError } from '@/utils/http-error';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -8,6 +8,7 @@ const allowedOrigins = new Set([
   new URL(env.ADMIN_URL).origin,
   new URL(env.MEET_URL).origin,
   new URL(env.CHAT_URL).origin,
+  new URL(env.ACCOUNTS_URL).origin,
 ]);
 
 /**
@@ -21,6 +22,8 @@ export const sameOrigin: RequestHandler = (req, _res, next) => {
 
   const host = req.get('x-forwarded-host') ?? req.get('host');
   const sameHost = host && new URL(origin).host === host;
-  if (sameHost || allowedOrigins.has(origin)) return next();
+  // On a developer's machine every app is a localhost port.
+  const local = !isProduction && new URL(origin).hostname === 'localhost';
+  if (sameHost || local || allowedOrigins.has(origin)) return next();
   next(HttpError.forbidden('Cross-site request blocked'));
 };

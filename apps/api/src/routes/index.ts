@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '@/middlewares/auth';
+import { requireApp, requireAuth } from '@/middlewares/auth';
 import {
   applicationsRouter,
   applicationUploadRouter,
@@ -35,21 +35,22 @@ apiRouter.use('/booking-drafts', unfinishedUploadRouter);
 apiRouter.use('/applications', applicationUploadRouter);
 // Video meetings: public for guests with the link; each route checks sign-in where needed.
 apiRouter.use('/meet', meetRouter);
-// Muvance Mail (mail.muvance.com). Its own sign-in, separate from the admin's.
+// Muvance Mail (mail.muvance.com): Muvance accounts with Mail.
 apiRouter.use('/webmail', webmailRouter);
-// Muvance Chat (chat.muvance.com): teammates and invited clients. Its own sign-in too.
+// Muvance Chat (chat.muvance.com): Muvance accounts with Chat, and invited clients.
 apiRouter.use('/chat', chatRouter);
 
-// Admin (signed-in users; each route also checks role permissions)
-apiRouter.use('/dashboard', requireAuth, dashboardRouter);
-apiRouter.use('/devices', requireAuth, devicesRouter);
-apiRouter.use('/leads', requireAuth, leadsRouter);
-apiRouter.use('/meetings', requireAuth, meetingsRouter);
-apiRouter.use('/call-recordings', requireAuth, callRecordingsRouter);
-apiRouter.use('/mail-accounts', requireAuth, mailAccountsRouter);
-apiRouter.use('/mail-addresses', requireAuth, mailAddressesRouter);
-apiRouter.use('/recordings', requireAuth, recordingsRouter);
-apiRouter.use('/unfinished-bookings', requireAuth, unfinishedRouter);
-apiRouter.use('/admin/applications', requireAuth, applicationsRouter);
-apiRouter.use('/team', requireAuth, teamRouter);
-apiRouter.use('/settings', requireAuth, settingsRouter);
+// Admin CRM: Muvance accounts with the Admin CRM; each route also checks role permissions.
+const admin = [requireAuth, requireApp('admin')];
+apiRouter.use('/dashboard', admin, dashboardRouter);
+apiRouter.use('/devices', admin, devicesRouter);
+apiRouter.use('/leads', admin, leadsRouter);
+apiRouter.use('/meetings', admin, meetingsRouter);
+apiRouter.use('/call-recordings', admin, callRecordingsRouter);
+apiRouter.use('/mail-accounts', admin, mailAccountsRouter);
+apiRouter.use('/mail-addresses', admin, mailAddressesRouter);
+apiRouter.use('/recordings', admin, recordingsRouter);
+apiRouter.use('/unfinished-bookings', admin, unfinishedRouter);
+apiRouter.use('/admin/applications', admin, applicationsRouter);
+apiRouter.use('/team', admin, teamRouter);
+apiRouter.use('/settings', admin, settingsRouter);

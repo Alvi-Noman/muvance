@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { ObjectId } from 'mongodb';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import type { MailAccountDto, MailAccountsDto } from '@muvance/shared';
+import type { MailAccountsDto } from '@muvance/shared';
 import { env } from '@/config/env';
 import { collections, getDb, migrate } from '@/db/client';
 import { verifySha512Crypt } from '@/lib/sha512-crypt';
@@ -18,6 +19,23 @@ const accountsFile = async () =>
       .map((line) => line.split('|{SHA512-CRYPT}') as [string, string]),
   );
 
+type Agent = Awaited<ReturnType<typeof signedIn>>['agent'];
+
+/** Adds a person with Mail (People page) and returns their mailbox's id and account id. */
+async function personWithMail(agent: Agent, username: string, password = 'a-long-password-1') {
+  const res = await agent.post('/api/team').send({
+    name: `${username} Person`,
+    username,
+    password,
+    role: 'member',
+    apps: { admin: false, mail: true, chat: true, meet: true },
+  });
+  expect(res.status).toBe(201);
+  const userId = res.body.user.id as string;
+  const user = await collections.users().findOne({ _id: new ObjectId(userId) });
+  return { id: user!.mailAccountId!.toHexString(), userId };
+}
+
 describe('team email accounts', () => {
   it('only owners and admins manage email accounts', async () => {
     const member = await signedIn('member');
@@ -25,25 +43,21 @@ describe('team email accounts', () => {
     expect((await request(app).get('/api/mail-accounts')).status).toBe(401);
   });
 
-  it('creates mailboxes the mail server can read, with quotas and a sender name', async () => {
+  it('makes mailboxes the mail server can read, with quotas and a sender name', async () => {
     const { agent } = await signedIn('admin');
-    const res = await agent.post('/api/mail-accounts').send({
-      localPart: 'Nadia.K',
-      name: 'Nadia Karim',
-      password: 'a-long-password-1',
-      quotaGb: 5,
+    const { id } = await personWithMail(agent, 'Nadia.K');
+    const updated = await agent
+      .patch(`/api/mail-accounts/${id}`)
+      .send({ quotaGb: 5, senderName: 'Nadia from Muvance' });
+    expect(updated.body).toMatchObject({
+      address: 'nadia.k@muvance.com',
       senderName: 'Nadia from Muvance',
     });
-    expect(res.status).toBe(201);
-    const account = res.body as MailAccountDto;
-    expect(account.address).toBe('nadia.k@muvance.com');
-    expect(account.senderName).toBe('Nadia from Muvance');
 
     const hashes = await accountsFile();
     expect(verifySha512Crypt('a-long-password-1', hashes['nadia.k@muvance.com']!)).toBe(true);
-    const aliases = await file('postfix-virtual.cf');
     // Role addresses go to the first mailbox.
-    expect(aliases).toContain('postmaster@muvance.com nadia.k@muvance.com');
+    expect(await file('postfix-virtual.cf')).toMatch(/postmaster@muvance.com \S+@muvance.com/);
     expect(await file('dovecot-quotas.cf')).toContain('nadia.k@muvance.com:5G');
     expect(Number(await file('mailbox-count'))).toBeGreaterThan(0);
 
@@ -52,63 +66,52 @@ describe('team email accounts', () => {
     expect(list.accounts.map((a) => a.address)).toContain('nadia.k@muvance.com');
   });
 
-  it('keeps every address unique and rejects bad names', async () => {
+  it('mailboxes only come from People: no separate mailbox or password routes', async () => {
     const { agent } = await signedIn('owner');
-    const base = { name: 'X', password: 'a-long-password-1' };
-    const rafi = await agent.post('/api/mail-accounts').send({ ...base, localPart: 'rafi' });
+    const { id } = await personWithMail(agent, 'solo');
+    expect(
+      (
+        await agent
+          .post('/api/mail-accounts')
+          .send({ localPart: 'loose', name: 'X', password: 'a-long-password-1' })
+      ).status,
+    ).toBe(404);
+    expect(
+      (await agent.post(`/api/mail-accounts/${id}/password`).send({ password: 'x-long-pass-1' }))
+        .status,
+    ).toBe(404);
+  });
+
+  it('keeps every address unique', async () => {
+    const { agent } = await signedIn('owner');
+    const rafi = await personWithMail(agent, 'rafi');
     await agent
       .post('/api/mail-addresses')
-      .send({ localPart: 'hello', displayName: 'Muvance', ownerIds: [rafi.body.id] });
-    expect(
-      (await agent.post('/api/mail-accounts').send({ ...base, localPart: 'rafi' })).status,
-    ).toBe(409);
-    expect(
-      (await agent.post('/api/mail-accounts').send({ ...base, localPart: 'hello' })).status,
-    ).toBe(409);
-    expect(
-      (await agent.post('/api/mail-accounts').send({ ...base, localPart: '.bad' })).status,
-    ).toBe(400);
-    expect(
-      (await agent.post('/api/mail-accounts').send({ ...base, localPart: 'root' })).status,
-    ).toBe(400);
-    expect(
-      (await agent.post('/api/mail-accounts').send({ ...base, localPart: 'ok', password: 'short' }))
-        .status,
-    ).toBe(400);
+      .send({ localPart: 'hello', displayName: 'Muvance', ownerIds: [rafi.id] });
+    const taken = await agent.post('/api/team').send({
+      name: 'X',
+      username: 'hello',
+      password: 'a-long-password-1',
+      role: 'member',
+      apps: { admin: false, mail: true, chat: true, meet: true },
+    });
+    expect(taken.status).toBe(409);
   });
 
-  it('resets passwords', async () => {
+  it('switching Mail off removes the mailbox from the mail server', async () => {
     const { agent } = await signedIn('admin');
-    const created = await agent
-      .post('/api/mail-accounts')
-      .send({ localPart: 'omar', name: 'Omar', password: 'first-password-1' });
-    const id = (created.body as MailAccountDto).id;
-
-    await agent.post(`/api/mail-accounts/${id}/password`).send({ password: 'second-password-2' });
-    expect(
-      verifySha512Crypt('second-password-2', (await accountsFile())['omar@muvance.com']!),
-    ).toBe(true);
-  });
-
-  it('removes deleted mailboxes from the mail server', async () => {
-    const { agent } = await signedIn('admin');
-    const created = await agent
-      .post('/api/mail-accounts')
-      .send({ localPart: 'temp', name: 'Temp', password: 'a-long-password-1', aliases: ['temp2'] });
-    expect((await agent.delete(`/api/mail-accounts/${created.body.id}`)).status).toBe(204);
-    expect(await accountsFile()).not.toHaveProperty('temp@muvance.com');
-    expect(await file('postfix-virtual.cf')).not.toContain('temp2@');
+    const { userId } = await personWithMail(agent, 'temp');
+    expect(await accountsFile()).toHaveProperty(['temp@muvance.com']);
+    await agent
+      .patch(`/api/team/${userId}`)
+      .send({ apps: { admin: false, mail: false, chat: true, meet: true } });
+    expect(await accountsFile()).not.toHaveProperty(['temp@muvance.com']);
   });
 
   it('shared addresses go to one or more people, and stay unique', async () => {
     const { agent } = await signedIn('admin');
-    const base = { password: 'a-long-password-1' };
-    const ana = (
-      await agent.post('/api/mail-accounts').send({ ...base, localPart: 'ana', name: 'Ana' })
-    ).body as MailAccountDto;
-    const ben = (
-      await agent.post('/api/mail-accounts').send({ ...base, localPart: 'ben', name: 'Ben' })
-    ).body as MailAccountDto;
+    const ana = await personWithMail(agent, 'ana');
+    const ben = await personWithMail(agent, 'ben');
 
     const hr = await agent
       .post('/api/mail-addresses')
@@ -118,7 +121,7 @@ describe('team email accounts', () => {
       'hr@muvance.com ana@muvance.com,ben@muvance.com',
     );
 
-    // A name used by a mailbox or another address is taken; so is a mailbox name already used.
+    // A name used by a mailbox or another address is taken.
     expect(
       (
         await agent
@@ -132,9 +135,6 @@ describe('team email accounts', () => {
           .post('/api/mail-addresses')
           .send({ localPart: 'hr', displayName: 'X', ownerIds: [ben.id] })
       ).status,
-    ).toBe(409);
-    expect(
-      (await agent.post('/api/mail-accounts').send({ ...base, localPart: 'hr', name: 'X' })).status,
     ).toBe(409);
     // Nobody to receive it isn't allowed.
     expect(
@@ -155,8 +155,10 @@ describe('team email accounts', () => {
     expect(hrDto.owners.map((o) => o.address)).toEqual(['ben@muvance.com']);
     expect(list.accounts.find((a) => a.id === ben.id)?.addresses).toEqual(['hr@muvance.com']);
 
-    // Deleting Ben's mailbox leaves hr@ with nobody, so the mail server stops accepting it.
-    await agent.delete(`/api/mail-accounts/${ben.id}`);
+    // Ben losing his mailbox leaves hr@ with nobody, so the mail server stops accepting it.
+    await agent
+      .patch(`/api/team/${ben.userId}`)
+      .send({ apps: { admin: false, mail: false, chat: true, meet: true } });
     expect(await file('postfix-virtual.cf')).not.toContain('hr@muvance.com');
 
     const member = await signedIn('member');
@@ -171,12 +173,8 @@ describe('team email accounts', () => {
 
   it('turns old per-mailbox extra addresses into shared addresses', async () => {
     const { agent } = await signedIn('admin');
-    const res = await agent
-      .post('/api/mail-accounts')
-      .send({ localPart: 'olda', name: 'Old A', password: 'a-long-password-1' });
-    const id = res.body.id as string;
+    const { id } = await personWithMail(agent, 'olda');
     // How a mailbox looked before shared addresses existed.
-    const { ObjectId } = await import('mongodb');
     await collections
       .mailAccounts()
       .updateOne({ _id: new ObjectId(id) }, { $set: { aliases: ['billing'] } });

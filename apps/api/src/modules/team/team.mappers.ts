@@ -1,8 +1,12 @@
 import { rolePermissions, type InviteDto, type MeDto, type UserDto } from '@muvance/shared';
-import type { InviteDoc, UserDoc } from '@/db/types';
+import type { InviteDoc, MailAccountDoc, UserDoc } from '@/db/types';
 import { iso } from '@/lib/object-id';
+import { addressOf, appsOf, avatarUrlOf } from '@/modules/auth/account';
 
-export function toUserDto(user: UserDoc): UserDto {
+export function toUserDto(
+  user: UserDoc,
+  mailbox: Pick<MailAccountDoc, 'avatar'> | null = null,
+): UserDto {
   return {
     id: user._id.toHexString(),
     name: user.name,
@@ -13,11 +17,17 @@ export function toUserDto(user: UserDoc): UserDto {
     status: user.status,
     createdAt: user.createdAt.toISOString(),
     lastLoginAt: iso(user.lastLoginAt),
+    address: addressOf(user),
+    apps: appsOf(user),
+    avatarUrl: avatarUrlOf(user, mailbox),
   };
 }
 
-export function toMeDto(user: UserDoc): MeDto {
-  return { ...toUserDto(user), permissions: [...rolePermissions[user.role]] };
+export function toMeDto(
+  user: UserDoc,
+  mailbox: Pick<MailAccountDoc, 'avatar'> | null = null,
+): MeDto {
+  return { ...toUserDto(user, mailbox), permissions: [...rolePermissions[user.role]] };
 }
 
 export function toInviteDto(invite: InviteDoc): InviteDto {

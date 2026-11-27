@@ -1,17 +1,7 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  AtSign,
-  Camera,
-  Check,
-  Copy,
-  KeyRound,
-  Mail,
-  Pencil,
-  Plus,
-  Trash2,
-  Wand2,
-} from 'lucide-react';
+import { AtSign, Camera, Mail, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import {
   suggestAddressName,
@@ -31,45 +21,8 @@ import { formatRelative } from '@/lib/format';
 
 const queryKey = ['mail-accounts'] as const;
 
-/** A strong password people can still read out: three word-ish chunks and digits. */
-function generatePassword() {
-  const alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const bytes = crypto.getRandomValues(new Uint8Array(15));
-  const chars = Array.from(bytes, (b) => alphabet[b % alphabet.length]);
-  return [chars.slice(0, 5), chars.slice(5, 10), chars.slice(10)].map((c) => c.join('')).join('-');
-}
-
-/** "Nadia Karim" -> "nadia" (the first name), as a starting suggestion for the address. */
-function suggestLocalPart(name: string) {
-  // Someone typing an address ("hello@muvance.com") means the part before the @.
-  return (name.trim().split(/\s+/)[0]?.split('@')[0] ?? '')
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9._-]/g, '');
-}
-
-/** "Nadia Karim" -> "Nadia from Muvance", the usual name on a person's own mail. */
-function suggestSenderName(name: string) {
-  const first = name.trim().split(/\s+/)[0];
-  return first ? `${first} from Muvance` : '';
-}
-
-function useCopy() {
-  const [copied, setCopied] = useState<string | null>(null);
-  const copy = async (text: string, key: string) => {
-    await navigator.clipboard.writeText(text).catch(() => window.prompt('Copy this:', text));
-    setCopied(key);
-    setTimeout(() => setCopied(null), 1800);
-  };
-  return { copied, copy };
-}
-
 type Dialog =
-  | { kind: 'create' }
-  | { kind: 'edit'; account: MailAccountDto }
-  | { kind: 'password'; account: MailAccountDto }
-  | { kind: 'created'; address: string; password: string }
-  | { kind: 'address'; address: MailAddressDto | null };
+  { kind: 'edit'; account: MailAccountDto } | { kind: 'address'; address: MailAddressDto | null };
 
 /** Team mailboxes at @muvance.com. People sign in at mail.muvance.com. */
 export function EmailAccountsPage() {
@@ -95,13 +48,16 @@ export function EmailAccountsPage() {
             >
               {data?.webmailUrl.replace('https://', '') ?? 'mail.muvance.com'}
             </a>{' '}
-            with their email address and password.
+            with their Muvance account. Mailboxes come with Muvance accounts: switch Mail on for
+            someone on the People page.
           </>
         }
         actions={
-          <Button onClick={() => setDialog({ kind: 'create' })}>
-            <Plus className="size-4" aria-hidden /> New mailbox
-          </Button>
+          <Link to="/team">
+            <Button>
+              <Plus className="size-4" aria-hidden /> Add person
+            </Button>
+          </Link>
         }
       />
 
@@ -112,11 +68,13 @@ export function EmailAccountsPage() {
           <EmptyState
             icon={<Mail className="size-5" />}
             title="No mailboxes yet"
-            description="Create one for each teammate. The first one also receives postmaster@, abuse@ and dmarc@ mail."
+            description="Switch Mail on for someone on the People page. The first mailbox also receives postmaster@, abuse@ and dmarc@ mail."
             action={
-              <Button onClick={() => setDialog({ kind: 'create' })}>
-                <Plus className="size-4" aria-hidden /> New mailbox
-              </Button>
+              <Link to="/team">
+                <Button>
+                  <Plus className="size-4" aria-hidden /> Add person
+                </Button>
+              </Link>
             }
           />
         ) : (
@@ -126,7 +84,6 @@ export function EmailAccountsPage() {
                 key={account.id}
                 account={account}
                 onEdit={() => setDialog({ kind: 'edit', account })}
-                onPassword={() => setDialog({ kind: 'password', account })}
               />
             ))}
           </ul>
@@ -177,26 +134,11 @@ export function EmailAccountsPage() {
 
       {data && <ClientSettings settings={data.clientSettings} />}
 
-      <CreateDialog
-        open={dialog?.kind === 'create'}
-        domain={data?.domain ?? 'muvance.com'}
-        onClose={() => setDialog(null)}
-        onCreated={(address, password) => setDialog({ kind: 'created', address, password })}
-      />
       {dialog?.kind === 'edit' && (
         <EditDialog
           // The latest version, so a new picture shows straight away.
           account={accounts.find((a) => a.id === dialog.account.id) ?? dialog.account}
           onClose={() => setDialog(null)}
-        />
-      )}
-      {dialog?.kind === 'password' && (
-        <PasswordDialog
-          account={dialog.account}
-          onClose={() => setDialog(null)}
-          onDone={(password) =>
-            setDialog({ kind: 'created', address: dialog.account.address, password })
-          }
         />
       )}
       {dialog?.kind === 'address' && data && (
@@ -207,37 +149,12 @@ export function EmailAccountsPage() {
           onClose={() => setDialog(null)}
         />
       )}
-      {dialog?.kind === 'created' && data && (
-        <SignInDetails
-          address={dialog.address}
-          password={dialog.password}
-          webmailUrl={data.webmailUrl}
-          onClose={() => setDialog(null)}
-        />
-      )}
     </>
   );
 }
 
-function AccountRow({
-  account,
-  onEdit,
-  onPassword,
-}: {
-  account: MailAccountDto;
-  onEdit: () => void;
-  onPassword: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const remove = useMutation({
-    mutationFn: () => api.delete(`/mail-accounts/${account.id}`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey });
-      toast.success(`${account.address} deleted`);
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-
+/** A mailbox. Its password is the person's Muvance account password (People page). */
+function AccountRow({ account, onEdit }: { account: MailAccountDto; onEdit: () => void }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-5 py-4">
       <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -262,201 +179,11 @@ function AccountRow({
         </div>
       </div>
       <div className="flex items-center gap-1.5">
-        <Button size="sm" variant="secondary" onClick={onPassword}>
-          <KeyRound className="size-3.5" aria-hidden /> Reset password
-        </Button>
         <Button size="sm" variant="ghost" onClick={onEdit} aria-label={`Edit ${account.address}`}>
           <Pencil className="size-3.5" aria-hidden />
         </Button>
-        <Button
-          size="sm"
-          variant="danger-ghost"
-          aria-label={`Delete ${account.address}`}
-          disabled={remove.isPending}
-          onClick={() => {
-            if (
-              window.confirm(
-                `Delete ${account.address}? It stops receiving mail and nobody can sign in to it.`,
-              )
-            ) {
-              remove.mutate();
-            }
-          }}
-        >
-          <Trash2 className="size-3.5" aria-hidden />
-        </Button>
       </div>
     </li>
-  );
-}
-
-function PasswordInput({
-  value,
-  onChange,
-  fieldProps,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  fieldProps: Record<string, unknown>;
-}) {
-  return (
-    <div className="flex gap-2">
-      <Input
-        {...fieldProps}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        autoComplete="new-password"
-        className="font-mono"
-      />
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => onChange(generatePassword())}
-        title="Make a strong password"
-      >
-        <Wand2 className="size-4" aria-hidden /> Generate
-      </Button>
-    </div>
-  );
-}
-
-function CreateDialog({
-  open,
-  domain,
-  onClose,
-  onCreated,
-}: {
-  open: boolean;
-  domain: string;
-  onClose: () => void;
-  onCreated: (address: string, password: string) => void;
-}) {
-  const queryClient = useQueryClient();
-  const [name, setName] = useState('');
-  const [localPart, setLocalPart] = useState('');
-  const [touchedLocal, setTouchedLocal] = useState(false);
-  const [password, setPassword] = useState(generatePassword);
-  const [senderName, setSenderName] = useState('');
-  const [touchedSender, setTouchedSender] = useState(false);
-  const [quotaGb, setQuotaGb] = useState('10');
-
-  const reset = () => {
-    setName('');
-    setLocalPart('');
-    setTouchedLocal(false);
-    setPassword(generatePassword());
-    setSenderName('');
-    setTouchedSender(false);
-    setQuotaGb('10');
-  };
-
-  const create = useMutation({
-    mutationFn: () =>
-      api.post<MailAccountDto>('/mail-accounts', {
-        name,
-        localPart,
-        password,
-        senderName: senderName.trim() || undefined,
-        quotaGb: Number(quotaGb),
-      }),
-    onSuccess: (account) => {
-      void queryClient.invalidateQueries({ queryKey });
-      onCreated(account.address, password);
-      reset();
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    create.mutate();
-  };
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="New mailbox"
-      description="For a person: their own sign-in and inbox. For team addresses like hr@, accounts@ or hello@, use Shared addresses on this page instead."
-    >
-      <form onSubmit={submit} className="space-y-4">
-        <Field label="Their name">
-          {(p) => (
-            <Input
-              {...p}
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (!touchedLocal) setLocalPart(suggestLocalPart(e.target.value));
-                if (!touchedSender) setSenderName(suggestSenderName(e.target.value));
-              }}
-              placeholder="Nadia Karim"
-              required
-            />
-          )}
-        </Field>
-        <Field label="Email address">
-          {(p) => (
-            <div className="flex items-center gap-2">
-              <Input
-                {...p}
-                value={localPart}
-                onChange={(e) => {
-                  setTouchedLocal(true);
-                  setLocalPart(e.target.value.toLowerCase());
-                }}
-                placeholder="nadia"
-                required
-              />
-              <span className="shrink-0 text-sm text-neutral-600">@{domain}</span>
-            </div>
-          )}
-        </Field>
-        <Field
-          label="Starting password"
-          hint="At least 10 characters. They choose their own when they first sign in."
-        >
-          {(p) => <PasswordInput value={password} onChange={setPassword} fieldProps={p} />}
-        </Field>
-        <Field
-          label="Name on their emails"
-          hint="What people see in their inbox. They can adjust it in Muvance Mail."
-        >
-          {(p) => (
-            <Input
-              {...p}
-              value={senderName}
-              onChange={(e) => {
-                setTouchedSender(true);
-                setSenderName(e.target.value);
-              }}
-              placeholder="Nadia from Muvance"
-            />
-          )}
-        </Field>
-        <Field label="Storage (GB)">
-          {(p) => (
-            <Input
-              {...p}
-              type="number"
-              min={1}
-              max={100}
-              value={quotaGb}
-              onChange={(e) => setQuotaGb(e.target.value)}
-              className="w-28"
-            />
-          )}
-        </Field>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={create.isPending}>
-            Create mailbox
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 
@@ -539,94 +266,6 @@ function EditDialog({ account, onClose }: { account: MailAccountDto; onClose: ()
           </Button>
         </div>
       </form>
-    </Modal>
-  );
-}
-
-function PasswordDialog({
-  account,
-  onClose,
-  onDone,
-}: {
-  account: MailAccountDto;
-  onClose: () => void;
-  onDone: (password: string) => void;
-}) {
-  const [password, setPassword] = useState(generatePassword);
-  const save = useMutation({
-    mutationFn: () => api.post(`/mail-accounts/${account.id}/password`, { password }),
-    onSuccess: () => onDone(password),
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Reset password"
-      description={`A new password for ${account.address}. Phones and mail apps will ask for it again.`}
-    >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          save.mutate();
-        }}
-        className="space-y-4"
-      >
-        <Field label="New password">
-          {(p) => <PasswordInput value={password} onChange={setPassword} fieldProps={p} />}
-        </Field>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={save.isPending}>
-            Set password
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-/** Shown once after creating a mailbox or resetting its password, ready to send to the person. */
-function SignInDetails({
-  address,
-  password,
-  webmailUrl,
-  onClose,
-}: {
-  address: string;
-  password: string;
-  webmailUrl: string;
-  onClose: () => void;
-}) {
-  const { copied, copy } = useCopy();
-  const message = `Your Muvance email is ready.\n\nSign in at: ${webmailUrl}\nEmail: ${address}\nPassword: ${password}\n\nWhen you first sign in, you'll choose your own password.`;
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Sign-in details"
-      description="Send these to the person privately. They'll choose their own password when they first sign in, so this one only works once."
-    >
-      <div className="space-y-2 rounded-xl border border-hud/20 bg-void/40 p-4 font-mono text-sm">
-        <p>
-          <span className="text-neutral-500">Webmail:</span> {webmailUrl}
-        </p>
-        <p>
-          <span className="text-neutral-500">Email:</span> {address}
-        </p>
-        <p>
-          <span className="text-neutral-500">Password:</span> {password}
-        </p>
-      </div>
-      <div className="mt-5 flex justify-end gap-2">
-        <Button variant="secondary" onClick={() => copy(message, 'all')}>
-          {copied === 'all' ? <Check className="size-4" /> : <Copy className="size-4" />}
-          {copied === 'all' ? 'Copied' : 'Copy message'}
-        </Button>
-        <Button onClick={onClose}>Done</Button>
-      </div>
     </Modal>
   );
 }

@@ -25,6 +25,13 @@ const envSchema = z.object({
 
   /** Send the session cookie over HTTPS only. Must be true in production. */
   COOKIE_SECURE: bool.optional(),
+  /**
+   * The Muvance account sign-in cookie is shared by every app on this domain (e.g. "muvance.com"
+   * covers admin., mail., chat., meet. and accounts.). Unset in development: localhost shares it.
+   */
+  COOKIE_DOMAIN: z.string().min(1).optional(),
+  /** Public URL of the Muvance account page (accounts.muvance.com): sign-in, password, apps. */
+  ACCOUNTS_URL: z.url().default('http://localhost:5178'),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(14),
 
   /**

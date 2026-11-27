@@ -8,14 +8,21 @@ import type {
 } from '@muvance/shared';
 import { api, ApiClientError } from './api';
 
+/**
+ * The signed-in mailbox: null when signed out, 'no-mail' for a Muvance account without Mail, and
+ * 'choose-password' while still on an admin's starting password.
+ */
 export function useMe() {
   return useQuery({
     queryKey: ['me'],
-    queryFn: async () => {
+    queryFn: async (): Promise<WebmailMeDto | null | 'no-mail' | 'choose-password'> => {
       try {
         return await api.get<WebmailMeDto>('/me');
       } catch (error) {
         if (error instanceof ApiClientError && error.status === 401) return null;
+        if (error instanceof ApiClientError && error.status === 403) {
+          return /password/i.test(error.message) ? 'choose-password' : 'no-mail';
+        }
         throw error;
       }
     },

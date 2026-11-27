@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Eye, EyeOff, Lock } from 'lucide-react';
+import { account, accountsUrl, isTeamLogin } from '@/lib/account';
 import { api, errorMessage } from '@/lib/api';
 import { keys } from '@/lib/data';
 import { LogoMark, Spinner } from '@/components/ui';
@@ -100,7 +101,16 @@ export function LoginPage() {
     setBusy(true);
     setError('');
     try {
-      await api.post('/login', { email, password });
+      if (isTeamLogin(email)) {
+        const me = await account.login(email, password);
+        // A starting password from an admin: choose your own on the account page first.
+        if (me.mustChangePassword) {
+          window.location.assign(accountsUrl());
+          return;
+        }
+      } else {
+        await api.post('/login', { email, password });
+      }
       await queryClient.resetQueries({ queryKey: keys.bootstrap });
     } catch (err) {
       setError(errorMessage(err));
@@ -120,11 +130,12 @@ export function LoginPage() {
           </div>
           <h2 className="text-2xl font-semibold tracking-tight">Sign in to Muvance Chat</h2>
           <p className="mt-1.5 text-sm text-muted">
-            Team: use your @muvance.com email. Clients: the email you were invited with.
+            Team: your Muvance account (the same for Mail, Meet and the Admin CRM). Clients: the
+            email you were invited with.
           </p>
 
           <label className="mt-8 block">
-            <span className="text-sm font-medium">Email</span>
+            <span className="text-sm font-medium">Username or email</span>
             <div className="mt-1.5 flex h-11 items-center rounded-xl border border-line bg-white pr-3 transition focus-within:border-ink focus-within:ring-4 focus-within:ring-black/5">
               <input
                 value={email}
@@ -164,8 +175,8 @@ export function LoginPage() {
           <p className="mt-8 flex items-start gap-2 text-xs leading-relaxed text-muted">
             <Lock className="mt-0.5 size-3.5 shrink-0" />
             <span>
-              The team signs in with their email password. Clients who forgot theirs: ask your
-              Muvance contact for a new sign-in link.
+              The team signs in with their Muvance account password. Clients who forgot theirs: ask
+              your Muvance contact for a new sign-in link.
             </span>
           </p>
         </form>
