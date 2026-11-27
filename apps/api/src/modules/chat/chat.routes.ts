@@ -1,14 +1,17 @@
-import express, { Router, type Request } from 'express';
+import { randomInt } from 'node:crypto';
+import express, { Router, type Request, type Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { ObjectId } from 'mongodb';
 import {
   CHAT_FILE_MAX_BYTES,
   chatAcceptInviteSchema,
   chatAddMembersSchema,
-  chatChangePasswordSchema,
   chatCreateSpaceSchema,
   chatDndSchema,
   chatEditSchema,
+  chatEmailCodeSchema,
+  chatGoogleSchema,
+  chatVerifyCodeSchema,
   chatForwardSchema,
   chatMarkUnreadSchema,
   chatPinSchema,
@@ -17,7 +20,6 @@ import {
   chatSaveSchema,
   chatStatusSchema,
   chatInviteGuestSchema,
-  chatLoginSchema,
   chatMemberRoleSchema,
   chatMuteSchema,
   chatProfileSchema,
@@ -36,6 +38,7 @@ import {
   type ChatMessageDto,
   type ChatMessagePage,
   type ChatSharedKind,
+  type ChatSignInOptionsDto,
   type ChatThreadDto,
 } from '@muvance/shared';
 import { env, isTest } from '@/config/env';
@@ -43,13 +46,8 @@ import { collections, isDuplicateKeyError } from '@/db/client';
 import type { ChatMessageDoc, ChatSpaceDoc, ChatUserDoc } from '@/db/types';
 import { logger } from '@/lib/logger';
 import { iso, toObjectId } from '@/lib/object-id';
-import {
-  DUMMY_PASSWORD_HASH,
-  hashPassword,
-  hashToken,
-  randomToken,
-  verifyPassword,
-} from '@/lib/security';
+import { googleId } from '@/lib/google-id';
+import { hashToken, randomToken } from '@/lib/security';
 
 import { loginLimiter } from '@/middlewares/rate-limit';
 import { validateBody } from '@/middlewares/validate';
@@ -69,7 +67,7 @@ import { chatFiles, INLINE_TYPES } from './files';
 import { firstLink, linkPreviews } from './previews';
 import { chatPush } from './push';
 import { hub } from './hub';
-import { chatEmail, chatMailer } from './mailer';
+import { canSendAsMuvance, chatEmail, chatMailer, systemMailer } from './mailer';
 import { chatSession, chatSessions, requireChatSession } from './session';
 
 /** Muvance Chat (chat.muvance.com): team and client conversations. */
@@ -109,7 +107,7 @@ async function announcePerson(user: ChatUserDoc) {
   hub.send(await chatService.relatedIds(user), { type: 'person', person: toPersonDto(user) });
 }
 
-/** A fresh one-time link for a guest to choose their password. */
+/** A fresh one-time link that signs a guest in (their invite, or a new link from the team). */
 async function newInvite(guest: ChatUserDoc, by: ObjectId, spaceId: ObjectId | null) {
   const token = randomToken();
   await collections.chatInvites().insertOne({
@@ -186,25 +184,168 @@ async function namesFor(ids: ObjectId[]) {
 }
 
 // --- Signing in --------------------------------------------------------------------------
+//
+// Clients never need a password: they continue with Google, or with a code emailed to them, or
+// from their invite link. Teammates sign in with their Muvance account (/api/auth/login).
 
-chatRouter.post('/login', loginLimiter, validateBody(chatLoginSchema), async (req, res) => {
-  let { email } = req.body as { email: string };
-  const { password } = req.body as { password: string };
-  if (!email.includes('@')) email = `${email}@${env.MAIL_DOMAIN}`;
+const CODE_MINUTES = 10;
+const CODE_TRIES = 5;
 
-  // The team signs in with their Muvance account (/api/auth/login); this is for clients.
+/** Stops one address from being flooded with codes: 6 an hour. */
+const codeLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 6,
+  keyGenerator: (req) =>
+    `code:${String(req.body?.email ?? '')
+      .trim()
+      .toLowerCase()}`,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: {
+    error: {
+      message: 'We sent a lot of codes to this email. Use the latest one, or wait a while.',
+    },
+  },
+  skip: () => isTest,
+});
+
+/** The invited client with this email, ready to sign in. */
+async function clientByEmail(email: string) {
   if (isTeamEmail(email)) {
-    throw HttpError.badRequest('Sign in with your Muvance account.');
+    throw HttpError.badRequest('That’s a Muvance team address. Sign in as a team member.');
   }
-
   const user = await collections.chatUsers().findOne({ email, kind: 'guest' });
-  const ok = await verifyPassword(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
-  if (!user || !user.passwordHash || !ok) throw HttpError.unauthorized('Wrong email or password.');
-  if (user.status === 'removed') {
-    throw HttpError.forbidden('Your access to Muvance Chat has ended.');
+  if (!user) {
+    throw HttpError.notFound(
+      `We couldn't find an invitation for ${email}. Use the email your Muvance contact invited, or ask them to add you.`,
+    );
   }
-  await chatSessions.create(user._id, null, res);
-  res.json(meDto(user));
+  if (user.status === 'removed') {
+    throw HttpError.forbidden(
+      'Your access to Muvance Chat has ended. Ask your Muvance contact if this is a mistake.',
+    );
+  }
+  return user;
+}
+
+/** Signs a client in (their first time makes them active; Google can give their full name). */
+async function signInClient(user: ChatUserDoc, res: Response, name?: string | null) {
+  const updated = (await collections
+    .chatUsers()
+    .findOneAndUpdate(
+      { _id: user._id },
+      { $set: { status: 'active', updatedAt: new Date(), ...(name && { name }) } },
+      { returnDocument: 'after' },
+    ))!;
+  await chatSessions.create(updated._id, null, res);
+  if (user.status !== 'active' || name) await announcePerson(updated);
+  return updated;
+}
+
+const codeHashOf = (email: string, code: string) => hashToken(`${email}:${code}`);
+
+/**
+ * An email from Muvance Chat itself (a sign-in code): through the relay, or else from the address
+ * of the teammate who invited them.
+ */
+async function emailFromMuvance(
+  guest: ChatUserDoc,
+  content: Parameters<typeof chatEmail>[0] & { subject: string },
+) {
+  const message = { to: guest.email, subject: content.subject, ...chatEmail(content) };
+  if (canSendAsMuvance()) return systemMailer.send(message);
+  const teammate = guest.invitedBy
+    ? await collections
+        .chatUsers()
+        .findOne({ _id: guest.invitedBy, kind: 'team', status: 'active' })
+    : null;
+  const password = teammate && (await chatSessions.mailPasswordOf(teammate._id));
+  if (!teammate || !password) throw new Error('No way to send email (no relay login)');
+  await chatMailer.send({ email: teammate.email, password }, message);
+}
+
+chatRouter.get('/sign-in-options', (_req, res) => {
+  const body: ChatSignInOptionsDto = { googleClientId: env.GOOGLE_CLIENT_ID || null };
+  res.json(body);
+});
+
+/** Emails a client a 6-digit code (and a link with it) to sign in. */
+chatRouter.post(
+  '/login/email',
+  loginLimiter,
+  codeLimiter,
+  validateBody(chatEmailCodeSchema),
+  async (req, res) => {
+    const { email } = req.body as { email: string };
+    const user = await clientByEmail(email);
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    const now = new Date();
+    await collections.chatCodes().deleteMany({ email });
+    await collections.chatCodes().insertOne({
+      _id: new ObjectId(),
+      email,
+      codeHash: codeHashOf(email, code),
+      attempts: 0,
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + CODE_MINUTES * 60_000),
+    });
+    try {
+      await emailFromMuvance(user, {
+        subject: `${code} is your Muvance Chat code`,
+        heading: 'Your sign-in code',
+        lines: [
+          `Enter this code in Muvance Chat to sign in. It works for ${CODE_MINUTES} minutes.`,
+        ],
+        code,
+        button: 'Sign in to Muvance Chat',
+        url: `${env.CHAT_URL}/signin?${new URLSearchParams({ email, code })}`,
+      });
+    } catch (error) {
+      logger.warn({ err: error, to: email }, 'Could not email a chat sign-in code');
+      await collections.chatCodes().deleteMany({ email });
+      throw new HttpError(
+        503,
+        "We couldn't send the email just now. Try again in a minute, or ask your Muvance contact for a sign-in link.",
+      );
+    }
+    res.status(204).end();
+  },
+);
+
+chatRouter.post(
+  '/login/code',
+  loginLimiter,
+  validateBody(chatVerifyCodeSchema),
+  async (req, res) => {
+    const { email, code } = req.body as { email: string; code: string };
+    const doc = await collections.chatCodes().findOne({ email }, { sort: { createdAt: -1 } });
+    if (!doc || doc.expiresAt.getTime() < Date.now() || doc.attempts >= CODE_TRIES) {
+      throw HttpError.badRequest('This code has expired. Send yourself a new one.');
+    }
+    if (doc.codeHash !== codeHashOf(email, code)) {
+      await collections.chatCodes().updateOne({ _id: doc._id }, { $inc: { attempts: 1 } });
+      throw HttpError.badRequest("That code isn't right. Check the latest email and try again.");
+    }
+    await collections.chatCodes().deleteMany({ email });
+    const user = await clientByEmail(email);
+    res.json(meDto(await signInClient(user, res)));
+  },
+);
+
+chatRouter.post('/login/google', loginLimiter, validateBody(chatGoogleSchema), async (req, res) => {
+  if (!env.GOOGLE_CLIENT_ID) throw HttpError.notFound('Google sign-in is not set up.');
+  const { credential } = req.body as { credential: string };
+  const identity = await googleId.verify(credential, env.GOOGLE_CLIENT_ID).catch((error) => {
+    logger.warn({ err: error }, 'Could not check a Google sign-in');
+    return null;
+  });
+  if (!identity) {
+    throw HttpError.unauthorized("Google sign-in didn't work. Try again, or continue with email.");
+  }
+  const user = await clientByEmail(identity.email);
+  // Their first time: the name on their Google account beats the one the team typed.
+  const name = user.status === 'invited' ? identity.name : null;
+  res.json(meDto(await signInClient(user, res, name)));
 });
 
 /** Signs a client out. (Teammates sign out of their Muvance account: /api/auth/logout.) */
@@ -217,7 +358,7 @@ async function inviteFor(token: string) {
   const invite = await collections.chatInvites().findOne({ tokenHash: hashToken(token) });
   if (!invite || invite.expiresAt.getTime() < Date.now()) {
     throw HttpError.notFound(
-      'This invite link has expired or was already used. Ask the person who invited you for a new one.',
+      'This link has expired or was already used. Sign in with your email instead: we’ll send you a code.',
     );
   }
   const user = await collections.chatUsers().findOne({ _id: invite.userId });
@@ -237,36 +378,22 @@ chatRouter.get('/invites/:token', async (req, res) => {
     name: user.name,
     invitedBy: by?.name ?? 'Muvance',
     spaceName: space?.name ?? null,
-    existing: Boolean(user.passwordHash),
+    existing: user.status === 'active',
   };
   res.json(info);
 });
 
+/** Joining (or signing in) from an invite link: the link itself is the sign-in. */
 chatRouter.post(
   '/invites/:token/accept',
   loginLimiter,
   validateBody(chatAcceptInviteSchema),
   async (req, res) => {
-    const { user } = await inviteFor(String(req.params.token));
-    const { name, password } = req.body as { name: string; password: string };
-    const updated = await collections.chatUsers().findOneAndUpdate(
-      { _id: user._id },
-      {
-        $set: {
-          name,
-          passwordHash: await hashPassword(password),
-          status: 'active',
-          updatedAt: new Date(),
-        },
-      },
-      { returnDocument: 'after' },
-    );
-    // The link is used up, and a new password signs out anywhere else.
-    await collections.chatInvites().deleteMany({ userId: user._id });
-    await chatSessions.destroyAll(user._id);
-    await chatSessions.create(user._id, null, res);
-    await announcePerson(updated!);
-    res.json(meDto(updated!));
+    const { invite, user } = await inviteFor(String(req.params.token));
+    const { name } = req.body as { name: string };
+    // Links are single-use.
+    await collections.chatInvites().deleteOne({ _id: invite._id });
+    res.json(meDto(await signInClient(user, res, name)));
   },
 );
 
@@ -325,30 +452,6 @@ chatRouter.put('/me', validateBody(chatProfileSchema), async (req, res) => {
     );
   await announcePerson(updated!);
   res.json(meDto(updated!));
-});
-
-chatRouter.put('/me/password', validateBody(chatChangePasswordSchema), async (req, res) => {
-  const user = me(req);
-  if (user.kind === 'team') {
-    throw HttpError.badRequest(
-      `Your password is your Muvance account's. Change it at ${env.ACCOUNTS_URL}.`,
-    );
-  }
-  const { current, next } = req.body as { current: string; next: string };
-  if (!user.passwordHash || !(await verifyPassword(current, user.passwordHash))) {
-    throw HttpError.forbidden('Your current password is wrong.');
-  }
-  await collections
-    .chatUsers()
-    .updateOne(
-      { _id: user._id },
-      { $set: { passwordHash: await hashPassword(next), updatedAt: new Date() } },
-    );
-  // Sign out everywhere else.
-  await collections
-    .chatSessions()
-    .deleteMany({ userId: user._id, _id: { $ne: chatSession(req).id } });
-  res.status(204).end();
 });
 
 async function setAvatar(req: Request, image: string | null) {
@@ -697,13 +800,16 @@ chatRouter.post('/spaces/:id/guests', validateBody(chatInviteGuestSchema), async
     };
     await collections.chatUsers().insertOne(guest);
   } else if (guest.status === 'removed') {
-    guest = (await collections
-      .chatUsers()
-      .findOneAndUpdate(
-        { _id: guest._id },
-        { $set: { status: guest.passwordHash ? 'active' : 'invited', updatedAt: now } },
-        { returnDocument: 'after' },
-      ))!;
+    guest = (await collections.chatUsers().findOneAndUpdate(
+      { _id: guest._id },
+      {
+        $set: {
+          status: guest.lastSeenAt || guest.passwordHash ? 'active' : 'invited',
+          updatedAt: now,
+        },
+      },
+      { returnDocument: 'after' },
+    ))!;
   }
   await chatService.addMembers(space, [guest._id], 'member');
   await chatService.announceSpaces(await chatService.memberIds(space._id));
@@ -711,14 +817,14 @@ chatRouter.post('/spaces/:id/guests', validateBody(chatInviteGuestSchema), async
   const inviter = me(req).name;
   let inviteUrl: string | null = null;
   let emailed: boolean;
-  if (!guest.passwordHash) {
+  if (guest.status !== 'active') {
     inviteUrl = await newInvite(guest, meId(req), space._id);
     emailed = await emailGuest(req, guest, {
       subject: `${inviter} invited you to chat with Muvance`,
       heading: `${inviter} invited you to “${space.name}”`,
       lines: [
         'Muvance Chat is where we talk with you about your work: messages, files and updates in one place.',
-        'Open the link to choose your password. It works for 14 days.',
+        'Open the link to join. No password or account needed.',
       ],
       button: 'Join the conversation',
       url: inviteUrl,
@@ -1424,7 +1530,7 @@ chatRouter.get('/guests', async (req, res) => {
   res.json(body);
 });
 
-/** A new sign-in link for a guest: for one who lost the invite or forgot their password. */
+/** A new sign-in link for a guest, to send them another way (or if their email codes don't arrive). */
 chatRouter.post('/guests/:id/link', async (req, res) => {
   requireTeam(req);
   const guest = await chatService.user(toObjectId(String(req.params.id), 'Guest'));
@@ -1434,11 +1540,11 @@ chatRouter.post('/guests/:id/link', async (req, res) => {
   const url = await newInvite(guest, meId(req), null);
   const emailed = await emailGuest(req, guest, {
     subject: 'Your Muvance Chat sign-in link',
-    heading: guest.passwordHash ? 'Choose a new password' : 'Join Muvance Chat',
+    heading: guest.status === 'active' ? 'Sign in to Muvance Chat' : 'Join Muvance Chat',
     lines: [
-      `${me(req).name} sent you a link to ${guest.passwordHash ? 'choose a new password for' : 'join'} Muvance Chat. It works for 14 days.`,
+      `${me(req).name} sent you a link to ${guest.status === 'active' ? 'sign in to' : 'join'} Muvance Chat. It works once, for 14 days.`,
     ],
-    button: guest.passwordHash ? 'Choose a new password' : 'Join the conversation',
+    button: guest.status === 'active' ? 'Sign in' : 'Join the conversation',
     url,
   });
   res.json({ inviteUrl: url, emailed });

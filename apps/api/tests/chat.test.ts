@@ -11,7 +11,9 @@ import type {
   ChatSpaceDto,
   ChatThreadDto,
 } from '@muvance/shared';
+import { env } from '@/config/env';
 import { collections } from '@/db/client';
+import { googleId } from '@/lib/google-id';
 import { chatAlerts } from '@/modules/chat/alerts';
 import { app, muvancePerson, signedIn } from './helpers';
 
@@ -58,11 +60,15 @@ async function guestIn(team: request.Agent, spaceId: string, email: string) {
   const body = invite.body as ChatInviteResultDto;
   const token = body.inviteUrl!.split('/join/')[1]!;
   const guest = request.agent(app);
-  const accept = await guest
-    .post(`/api/chat/invites/${token}/accept`)
-    .send({ name: 'Rafi Ahmed', password: 'client-password-1' });
+  const accept = await guest.post(`/api/chat/invites/${token}/accept`).send({ name: 'Rafi Ahmed' });
   expect(accept.status).toBe(200);
   return { agent: guest, id: body.person.id, token };
+}
+
+/** The code in the latest sign-in email to `email`. */
+function lastCode(email: string) {
+  const mail = [...sent].reverse().find((m) => m.to === email && /code/.test(m.subject));
+  return /\b(\d{6})\b/.exec(mail?.subject ?? '')?.[1] ?? null;
 }
 
 describe('Muvance Chat sign-in', () => {
@@ -76,10 +82,10 @@ describe('Muvance Chat sign-in', () => {
     });
     // Chat's own sign-in is for clients only.
     const viaChat = await request(app)
-      .post('/api/chat/login')
-      .send({ email: 'nadia@muvance.com', password: 'starting-password-1' });
+      .post('/api/chat/login/email')
+      .send({ email: 'nadia@muvance.com' });
     expect(viaChat.status).toBe(400);
-    expect(viaChat.body.error.message).toMatch(/Muvance account/);
+    expect(viaChat.body.error.message).toMatch(/team member/);
     // Still on the starting password: not yet.
     const fresh = request.agent(app);
     await fresh
@@ -250,8 +256,86 @@ describe('Spaces and messages', () => {
   });
 });
 
+describe('Clients signing in', () => {
+  it('only sends codes to invited clients, and points the team to their own sign-in', async () => {
+    const stranger = await request(app)
+      .post('/api/chat/login/email')
+      .send({ email: 'nobody@example.com' });
+    expect(stranger.status).toBe(404);
+    expect(stranger.body.error.message).toContain('invitation');
+    const team = await request(app).post('/api/chat/login/email').send({ email: 'x@muvance.com' });
+    expect(team.status).toBe(400);
+    expect(team.body.error.message).toContain('team');
+    expect((await request(app).get('/api/chat/sign-in-options')).body).toEqual({
+      googleClientId: null,
+    });
+  });
+
+  it('stops a code after too many wrong guesses', async () => {
+    const ivo = await teammate('ivo');
+    const space = (await ivo.agent.post('/api/chat/spaces').send({ name: 'Client: Ivy' }))
+      .body as ChatSpaceDto;
+    await guestIn(ivo.agent, space.id, 'guess@client.com');
+    await request(app).post('/api/chat/login/email').send({ email: 'guess@client.com' });
+    const code = lastCode('guess@client.com')!;
+    const wrong = code === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i++) {
+      await request(app)
+        .post('/api/chat/login/code')
+        .send({ email: 'guess@client.com', code: wrong });
+    }
+    const late = await request(app)
+      .post('/api/chat/login/code')
+      .send({ email: 'guess@client.com', code });
+    expect(late.status).toBe(400);
+    expect(late.body.error.message).toContain('expired');
+  });
+
+  it('continues with Google for an invited client, using their Google name the first time', async () => {
+    const zoe = await teammate('zoe');
+    const space = (await zoe.agent.post('/api/chat/spaces').send({ name: 'Client: Zed' }))
+      .body as ChatSpaceDto;
+    await zoe.agent
+      .post(`/api/chat/spaces/${space.id}/guests`)
+      .send({ email: 'ceo@zed.com', name: 'ceo' });
+
+    env.GOOGLE_CLIENT_ID = 'test-client.apps.googleusercontent.com';
+    const verify = vi.spyOn(googleId, 'verify');
+    try {
+      expect((await request(app).get('/api/chat/sign-in-options')).body).toEqual({
+        googleClientId: 'test-client.apps.googleusercontent.com',
+      });
+      verify.mockResolvedValueOnce(null);
+      const bad = await request(app)
+        .post('/api/chat/login/google')
+        .send({ credential: 'x'.repeat(40) });
+      expect(bad.status).toBe(401);
+
+      verify.mockResolvedValueOnce({ email: 'someone@gmail.com', name: 'Some One' });
+      const notInvited = await request(app)
+        .post('/api/chat/login/google')
+        .send({ credential: 'x'.repeat(40) });
+      expect(notInvited.status).toBe(404);
+
+      verify.mockResolvedValueOnce({ email: 'ceo@zed.com', name: 'Zara Ed' });
+      const client = request.agent(app);
+      const ok = await client.post('/api/chat/login/google').send({ credential: 'x'.repeat(40) });
+      expect(ok.status).toBe(200);
+      expect(verify).toHaveBeenLastCalledWith(
+        'x'.repeat(40),
+        'test-client.apps.googleusercontent.com',
+      );
+      expect(ok.body).toMatchObject({ kind: 'guest', name: 'Zara Ed', status: 'active' });
+      expect((await bootstrap(client)).spaces.map((s) => s.id)).toEqual([space.id]);
+    } finally {
+      verify.mockRestore();
+      env.GOOGLE_CLIENT_ID = undefined;
+    }
+  });
+});
+
 describe('Guests (clients)', () => {
-  it('invites a client, who chooses a password and sees only their spaces', async () => {
+  it('invites a client, who joins from the link (no password) and sees only their spaces', async () => {
     const jay = await teammate('jay');
     const space = (await jay.agent.post('/api/chat/spaces').send({ name: 'Client: Brand Co' }))
       .body as ChatSpaceDto;
@@ -279,18 +363,7 @@ describe('Guests (clients)', () => {
 
     const guest = request.agent(app);
     expect(
-      (
-        await guest
-          .post(`/api/chat/invites/${token}/accept`)
-          .send({ name: 'Rafi', password: 'short' })
-      ).status,
-    ).toBe(400);
-    expect(
-      (
-        await guest
-          .post(`/api/chat/invites/${token}/accept`)
-          .send({ name: 'Rafi Ahmed', password: 'client-password-1' })
-      ).status,
+      (await guest.post(`/api/chat/invites/${token}/accept`).send({ name: 'Rafi Ahmed' })).status,
     ).toBe(200);
     // The link is used up.
     expect((await request(app).get(`/api/chat/invites/${token}`)).status).toBe(404);
@@ -308,15 +381,29 @@ describe('Guests (clients)', () => {
     ).toBe(403);
     expect((await guest.get('/api/chat/guests')).status).toBe(403);
 
-    // They sign in again with their email and password.
+    // On another device they sign in with a code emailed to them.
     const again = request.agent(app);
     expect(
-      (
-        await again
-          .post('/api/chat/login')
-          .send({ email: 'rafi@brandco.com', password: 'client-password-1' })
-      ).status,
-    ).toBe(200);
+      (await again.post('/api/chat/login/email').send({ email: 'Rafi@BrandCo.com ' })).status,
+    ).toBe(204);
+    const code = lastCode('rafi@brandco.com');
+    expect(code).toMatch(/^\d{6}$/);
+    const wrong = code === '000000' ? '111111' : '000000';
+    expect(
+      (await again.post('/api/chat/login/code').send({ email: 'rafi@brandco.com', code: wrong }))
+        .status,
+    ).toBe(400);
+    const ok = await again
+      .post('/api/chat/login/code')
+      .send({ email: 'rafi@brandco.com', code: `${code!.slice(0, 3)} ${code!.slice(3)}` });
+    expect(ok.status).toBe(200);
+    expect(ok.body).toMatchObject({ kind: 'guest', name: 'Rafi Ahmed' });
+    expect((await again.get('/api/chat/me')).status).toBe(200);
+    // A code works once.
+    expect(
+      (await request(app).post('/api/chat/login/code').send({ email: 'rafi@brandco.com', code }))
+        .status,
+    ).toBe(400);
 
     // They can message the teammate who shares their space, but not other guests' contacts.
     expect((await guest.post('/api/chat/dms').send({ userId: jay.id })).status).toBe(200);
@@ -366,15 +453,17 @@ describe('Guests (clients)', () => {
       invitedByName: 'Max Khan',
     });
 
-    // A new link lets them choose a new password.
+    // A new link signs them in.
     const link = await max.agent.post(`/api/chat/guests/${guest.id}/link`);
     expect(link.body.inviteUrl).toContain('/join/');
+    const info = await request(app).get(
+      `/api/chat/invites/${(link.body.inviteUrl as string).split('/join/')[1]}`,
+    );
+    expect(info.body).toMatchObject({ email: 'owner@tea.com', existing: true });
 
     expect((await max.agent.delete(`/api/chat/guests/${guest.id}`)).status).toBe(204);
     expect((await guest.agent.get('/api/chat/me')).status).toBe(401);
-    const login = await request(app)
-      .post('/api/chat/login')
-      .send({ email: 'owner@tea.com', password: 'client-password-1' });
+    const login = await request(app).post('/api/chat/login/email').send({ email: 'owner@tea.com' });
     expect(login.status).toBe(403);
     const members = (await bootstrap(max.agent)).spaces.find((s) => s.id === space.id)!.members;
     expect(members.map((m) => m.userId)).not.toContain(guest.id);

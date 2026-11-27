@@ -58,6 +58,11 @@ services:
       - ./runtime/livekit.env
       # Muvance Mail's session encryption key, also made by deploy.sh.
       - ./runtime/webmail.env
+      # The outgoing relay's login (copied from runtime/mail.env by deploy.sh), for clients'
+      # sign-in codes in Muvance Chat.
+      - ./runtime/relay.env
+      # GOOGLE_CLIENT_ID for "Continue with Google" in Muvance Chat (written by the release).
+      - ./runtime/google.env
     environment:
       NODE_ENV: production
       PORT: '4000'

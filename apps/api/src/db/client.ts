@@ -13,6 +13,7 @@ import type {
   ChatSavedDoc,
   ChatFileDoc,
   ChatInviteDoc,
+  ChatCodeDoc,
   ChatMemberDoc,
   ChatMessageDoc,
   ChatSessionDoc,
@@ -105,6 +106,7 @@ export const collections = {
   chatUsers: () => getDb().collection<ChatUserDoc>('chatUsers'),
   chatSessions: () => getDb().collection<ChatSessionDoc>('chatSessions'),
   chatInvites: () => getDb().collection<ChatInviteDoc>('chatInvites'),
+  chatCodes: () => getDb().collection<ChatCodeDoc>('chatCodes'),
   chatSpaces: () => getDb().collection<ChatSpaceDoc>('chatSpaces'),
   chatMembers: () => getDb().collection<ChatMemberDoc>('chatMembers'),
   chatMessages: () => getDb().collection<ChatMessageDoc>('chatMessages'),
@@ -287,6 +289,8 @@ async function ensureIndexes(database: Db) {
     database.collection('chatSessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database.collection('chatInvites').createIndex({ tokenHash: 1 }, { unique: true }),
     database.collection('chatInvites').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    database.collection('chatCodes').createIndex({ email: 1 }),
+    database.collection('chatCodes').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     database
       .collection('chatSpaces')
       .createIndex(

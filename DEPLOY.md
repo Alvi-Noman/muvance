@@ -138,7 +138,7 @@ on all of them (one cookie for the whole domain, `COOKIE_DOMAIN`), like a Google
 - **Passwords:** new people get a link to choose theirs (or a starting password they must change).
   Changing it at accounts.muvance.com changes it everywhere.
 - **Signing in:** username (`alvi`), address (`alvi@muvance.com`) or, for older accounts, the email
-  they used before. Clients (chat guests) keep their own chat sign-in.
+  they used before. Clients (chat guests) sign in without a password: Google, or a code by email.
 - **From before:** on start, the API joins each mailbox to the admin user with the same address or
   username, or makes it an account of its own (Mail, Chat and Meet). Each person's first sign-in with
   either old password makes it their one password. An older account still on an outside email can be
@@ -174,13 +174,22 @@ Muvance Chat (`apps/chat`, API module `apps/api/src/modules/chat`) is a Google C
 the team and clients: spaces (group conversations), direct messages, threads, reactions, files,
 @mentions and search.
 
-- **Team** members sign in with their @muvance.com mailbox and its password (they must have chosen
-  their own password in Muvance Mail first). Every mailbox is a chat user; deleting the mailbox ends
-  their chat access.
-- **Clients (guests)** are invited by email from a space's members list. The invite comes from the
-  teammate's own address and links to a page where they choose a password. Guests only see the
-  spaces they're in, and the people in them. Teammates manage guests in Settings → Guests (new
-  sign-in link, remove access).
+- **Clients (guests)** never have a password. The sign-in page is for them first: **Continue with
+  Google**, or their email and a 6-digit code emailed to them (the email also has a one-click
+  link). Only invited addresses can sign in. They're invited by email from a space's members list;
+  the invite comes from the teammate's own address and its link signs them straight in. Guests only
+  see the spaces they're in, and the people in them. Teammates manage guests in Settings → Guests
+  (send a sign-in link another way, remove access).
+- **Team** members use "Muvance team member? Sign in here" (their Muvance account). The page
+  remembers it on their computer.
+- **Code emails** come from `no-reply@<domain>` through the relay (Brevo): deploy.sh copies
+  `RELAY_USER`/`RELAY_PASSWORD` from `runtime/mail.env` to `runtime/relay.env`. Without it they're
+  sent from the inviting teammate's address.
+- **Continue with Google** appears once the GitHub repository variable `GOOGLE_CLIENT_ID` is set (the
+  release writes it to `runtime/google.env`). Make it in Google Cloud Console → APIs & Services →
+  Credentials → Create credentials → OAuth client ID → Web application, with **Authorized
+  JavaScript origins** `https://chat.muvance.com`. The OAuth consent screen needs only the default
+  scopes (email, profile) and should be **In production** (published) so any client can use it.
 - **Live updates** use Server-Sent Events (`/api/chat/events`), held in the API's memory (one API
   process).
 - **Email alerts:** a guest with messages from the team still unread after 10 minutes

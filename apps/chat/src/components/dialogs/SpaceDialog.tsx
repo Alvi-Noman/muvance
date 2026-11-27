@@ -241,8 +241,8 @@ function InviteGuest({ space, onDone }: { space: ChatSpaceDto; onDone: () => voi
     <div className="mb-5 rounded-2xl border border-line p-4">
       <form onSubmit={submit} className="space-y-3">
         <p className="text-sm text-muted">
-          They get an email from your address with a link to choose a password. Clients only see the
-          spaces they're added to.
+          They get an email from your address with a link to join: no password or account needed.
+          Clients only see the spaces they're added to.
         </p>
         <Field label="Client's email">
           <Input

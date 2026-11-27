@@ -65,6 +65,15 @@ if [ ! -f runtime/webmail.env ]; then
 ')" > runtime/webmail.env)
 fi
 
+# Muvance Chat emails clients their sign-in codes through the same relay as the mail server.
+if [ -f runtime/mail.env ]; then
+  (umask 077 && grep -E '^RELAY_(USER|PASSWORD)=' runtime/mail.env > runtime/relay.env || :)
+else
+  : > runtime/relay.env
+fi
+# "Continue with Google" in Muvance Chat: the release writes it from the GOOGLE_CLIENT_ID variable.
+[ -f runtime/google.env ] || : > runtime/google.env
+
 # Start email only once it's set up, so a deploy can never fail on it: the relay's login
 # (runtime/mail.env), Caddy's certificate for mail.<domain> (needs the DNS record), and a mailbox.
 SITE_DOMAIN="$(sed -n 's/^SITE_DOMAIN=//p' .env.production)"

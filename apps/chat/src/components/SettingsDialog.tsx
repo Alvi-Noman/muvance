@@ -17,7 +17,6 @@ import {
 import { setSoundOn, soundOn } from '@/lib/notify';
 import { disablePush, enablePush, usePushState } from '@/lib/push';
 import { cn, shortDate } from '@/lib/utils';
-import { PasswordInput } from '@/pages/LoginPage';
 import {
   Avatar,
   Badge,
@@ -176,7 +175,10 @@ function ProfileTab() {
               </Button>
             </div>
           </form>
-          <ChangePassword />
+          <p className="border-t border-line pt-5 text-sm text-muted">
+            You sign in with {me.email}, with a code we email you (or with Google). There's no
+            password to remember.
+          </p>
         </>
       ) : (
         <div className="flex items-center justify-between gap-4 rounded-xl bg-canvas p-3.5">
@@ -193,46 +195,6 @@ function ProfileTab() {
         </div>
       )}
     </div>
-  );
-}
-
-function ChangePassword() {
-  const toast = useToast();
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [busy, setBusy] = useState(false);
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      await api.put('/me/password', { current, next });
-      setCurrent('');
-      setNext('');
-      toast('Password changed. Other devices were signed out.');
-    } catch (error) {
-      toast(errorMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <form onSubmit={submit} className="space-y-3 border-t border-line pt-5">
-      <p className="text-sm font-semibold">Change password</p>
-      <label className="block">
-        <span className="text-sm">Current password</span>
-        <PasswordInput value={current} onChange={setCurrent} autoComplete="current-password" />
-      </label>
-      <label className="block">
-        <span className="text-sm">New password</span>
-        <PasswordInput value={next} onChange={setNext} autoComplete="new-password" />
-        <span className="mt-1 block text-xs text-muted">At least 8 characters.</span>
-      </label>
-      <div className="flex justify-end">
-        <Button type="submit" variant="secondary" disabled={busy || !current || next.length < 8}>
-          {busy ? <Spinner /> : 'Change password'}
-        </Button>
-      </div>
-    </form>
   );
 }
 
@@ -473,8 +435,8 @@ function GuestsTab() {
   return (
     <div className="-mx-2 space-y-1">
       <p className="px-2 pb-2 text-sm text-muted">
-        Clients invited to Muvance Chat. Send a new link if they lost theirs or forgot their
-        password.
+        Clients sign in with their email (a code, or Google), no password. If their emails don't
+        arrive, send them a sign-in link another way.
       </p>
       {guests.data.map((g) => (
         <div key={g.id} className="rounded-xl px-2.5 py-2 hover:bg-black/[0.02]">

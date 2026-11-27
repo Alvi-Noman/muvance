@@ -108,11 +108,14 @@ jobs:
         env:
           TARGET: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          # "Continue with Google" in Muvance Chat (optional; public, not a secret).
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
         run: |
           test -n "$DEPLOY_PATH"
+          case "$GOOGLE_CLIENT_ID" in *[!A-Za-z0-9.-]*) echo "GOOGLE_CLIENT_ID looks wrong"; exit 1 ;; esac
           # Variables are meant to expand here, on the runner, before being sent over SSH.
           # shellcheck disable=SC2029
-          ssh "$TARGET" "mkdir -p '$DEPLOY_PATH/runtime'"
+          ssh "$TARGET" "mkdir -p '$DEPLOY_PATH/runtime' && printf 'GOOGLE_CLIENT_ID=%s\n' '$GOOGLE_CLIENT_ID' > '$DEPLOY_PATH/runtime/google.env'"
           scp compose.production.yml Caddyfile deploy/deploy.sh deploy/livekit.yaml "$TARGET:$DEPLOY_PATH/"
 
       - name: Deploy (rolls back automatically if unhealthy)

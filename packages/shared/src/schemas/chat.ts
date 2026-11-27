@@ -9,29 +9,42 @@ export const CHAT_ATTACHMENTS_MAX = 10;
 /** "team": a @muvance.com mailbox. "guest": a client invited by the team. */
 export type ChatUserKind = 'team' | 'guest';
 
-export const chatLoginSchema = z.object({
-  email: z.string().trim().toLowerCase().min(1, 'Enter your email address').max(200),
-  password: z.string().min(1, 'Enter your password').max(200),
-});
-
-export const chatPasswordSchema = z
-  .string()
-  .min(8, 'Use at least 8 characters')
-  .max(200, 'That password is too long');
-
+/** Joining from an invite link: no password, the link signs them in. */
 export const chatAcceptInviteSchema = z.object({
   name: z.string().trim().min(1, 'Enter your name').max(80),
-  password: chatPasswordSchema,
 });
+
+const clientEmail = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(1, 'Enter your email address')
+  .max(200)
+  .pipe(z.email('Enter a valid email address'));
+
+/** A client asks for a sign-in code by email. */
+export const chatEmailCodeSchema = z.object({ email: clientEmail });
+
+export const chatVerifyCodeSchema = z.object({
+  email: clientEmail,
+  code: z
+    .string()
+    .transform((v) => v.replace(/\D/g, ''))
+    .pipe(z.string().length(6, 'Enter the 6-digit code from the email')),
+});
+
+/** "Continue with Google": the ID token Google gives the page. */
+export const chatGoogleSchema = z.object({ credential: z.string().min(20).max(5000) });
+
+/** How clients can sign in here. */
+export interface ChatSignInOptionsDto {
+  /** Google's OAuth client ID, or null when "Continue with Google" isn't set up. */
+  googleClientId: string | null;
+}
 
 export const chatProfileSchema = z.object({
   name: z.string().trim().min(1, 'Enter your name').max(80).optional(),
   company: z.string().trim().max(80).optional(),
-});
-
-export const chatChangePasswordSchema = z.object({
-  current: z.string().min(1, 'Enter your current password').max(200),
-  next: chatPasswordSchema,
 });
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid id');
@@ -253,7 +266,7 @@ export interface ChatInviteInfoDto {
   name: string;
   invitedBy: string;
   spaceName: string | null;
-  /** They already have a password: the link sets a new one. */
+  /** They joined before: the link just signs them in. */
   existing: boolean;
 }
 

@@ -58,6 +58,8 @@ function Root() {
       </div>
     );
   }
+  // The sign-in email's link, opened while already signed in.
+  if (window.location.pathname === '/signin') return <Navigate to="/" replace />;
   return <ChatApp />;
 }
 
@@ -98,6 +100,7 @@ const router = createBrowserRouter([
   { path: '/c/:spaceId', element: <Root /> },
   { path: '/saved', element: <Root /> },
   { path: '/join/:token', element: <JoinPage /> },
+  { path: '/signin', element: <Root /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ]);
 

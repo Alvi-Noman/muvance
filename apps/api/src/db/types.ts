@@ -345,7 +345,7 @@ export interface ChatUserDoc {
   email: string;
   name: string;
   company: string | null;
-  /** Guests only (bcrypt). Teammates use their mailbox password. */
+  /** From before clients signed in without passwords (codes, Google, links); no longer used. */
   passwordHash: string | null;
   /** "invited": a guest who hasn't opened their link yet. "removed": no longer has access. */
   status: 'invited' | 'active' | 'removed';
@@ -383,6 +383,17 @@ export interface ChatInviteDoc {
   userId: ObjectId;
   invitedBy: ObjectId;
   spaceId: ObjectId | null;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+/** A six-digit code emailed to a client to sign in to Muvance Chat (no password needed). */
+export interface ChatCodeDoc {
+  _id: ObjectId;
+  email: string;
+  codeHash: string;
+  /** Wrong guesses so far; the code stops working after a few. */
+  attempts: number;
   createdAt: Date;
   expiresAt: Date;
 }

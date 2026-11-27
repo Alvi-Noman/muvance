@@ -109,6 +109,20 @@ const envSchema = z.object({
   CHAT_SESSION_DAYS: z.coerce.number().int().min(1).max(365).default(60),
   /** Guests are emailed about messages they haven't read after this many minutes. */
   CHAT_EMAIL_ALERT_MINUTES: z.coerce.number().int().min(1).max(1440).default(10),
+  /**
+   * "Continue with Google" for clients in Muvance Chat: the OAuth client ID from Google Cloud
+   * (public, not a secret). Without it the button is hidden and clients sign in with an email code.
+   */
+  GOOGLE_CLIENT_ID: z.string().trim().optional(),
+  /**
+   * The outgoing relay (Brevo), for emails nobody on the team sends: clients' sign-in codes. The
+   * same login the mail server uses (runtime/mail.env). Without it, a code is sent from the address
+   * of the teammate who invited the client.
+   */
+  RELAY_HOST: z.string().default('smtp-relay.brevo.com'),
+  RELAY_PORT: z.coerce.number().int().default(587),
+  RELAY_USER: z.string().optional(),
+  RELAY_PASSWORD: z.string().optional(),
 
   TRUST_PROXY: z
     .string()

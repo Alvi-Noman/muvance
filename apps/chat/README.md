@@ -26,11 +26,13 @@ Team and client conversations at `https://chat.muvance.com`, in the style of Goo
 
 ## Who can sign in
 
-- **Team:** their Muvance account (username or @muvance.com address, and its one password), the same
-  sign-in as Mail, Meet and the Admin CRM. Admins switch Chat on or off on the People page.
-- **Clients (guests):** the email they were invited with, and the password they chose from the
-  invite link. They see only the spaces they're in. Teammates can send a new link (lost invite,
-  forgotten password) or remove access in Settings → Guests.
+- **Team:** "Muvance team member? Sign in here": their Muvance account (username and its one
+  password), the same sign-in as Mail, Meet and the Admin CRM. Admins switch Chat on or off on the
+  People page.
+- **Clients (guests)** come first on the sign-in page and never need a password: **Continue with
+  Google**, or their email and a 6-digit code we email them (or the link in that email). Their
+  invite link signs them straight in. Only invited emails can sign in, and they see only the spaces
+  they're in. Teammates can send a sign-in link another way, or remove access, in Settings → Guests.
 
 ## Where things are kept
 
