@@ -209,22 +209,84 @@ const codeLimiter = rateLimit({
   skip: () => isTest,
 });
 
-/** The invited client with this email, ready to sign in. */
+/** Stops one connection from emailing codes to lots of addresses: 20 an hour. */
+const codeSendLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 20,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: { message: 'Too many sign-in emails. Please wait a while and try again.' } },
+  skip: () => isTest,
+});
+
+/** The client with this email (null when they're new), if they may sign in. */
 async function clientByEmail(email: string) {
   if (isTeamEmail(email)) {
     throw HttpError.badRequest('That’s a Muvance team address. Sign in as a team member.');
   }
   const user = await collections.chatUsers().findOne({ email, kind: 'guest' });
-  if (!user) {
-    throw HttpError.notFound(
-      `We couldn't find an invitation for ${email}. Use the email your Muvance contact invited, or ask them to add you.`,
-    );
-  }
-  if (user.status === 'removed') {
+  if (user?.status === 'removed') {
     throw HttpError.forbidden(
       'Your access to Muvance Chat has ended. Ask your Muvance contact if this is a mistake.',
     );
   }
+  return user;
+}
+
+/**
+ * Anyone may come in as a client. Someone new gets a conversation of their own with the whole
+ * team (who are notified when they write); the team can add them to other spaces later.
+ */
+async function newClient(email: string, name: string | null) {
+  const now = new Date();
+  const user: ChatUserDoc = {
+    _id: new ObjectId(),
+    kind: 'guest',
+    email,
+    name: name || email.split('@')[0]!,
+    company: null,
+    passwordHash: null,
+    status: 'active',
+    avatar: null,
+    invitedBy: null,
+    createdAt: now,
+    updatedAt: now,
+    lastSeenAt: null,
+    emailNotifiedAt: null,
+  };
+  try {
+    await collections.chatUsers().insertOne(user);
+  } catch (error) {
+    // Signed up twice at once: use the first.
+    if (!isDuplicateKeyError(error)) throw error;
+    return (await collections.chatUsers().findOne({ email }))!;
+  }
+  await chatService.syncTeam();
+  const team = await collections
+    .chatUsers()
+    .find({ kind: 'team', status: 'active' }, { projection: { _id: 1 } })
+    .toArray();
+  const space: ChatSpaceDoc = {
+    _id: new ObjectId(),
+    kind: 'space',
+    // Their Google name, or else their email (clearer for the team than its first part).
+    name: (name || email).slice(0, 80),
+    description: 'Tell us about your business and what you need. The Muvance team will reply here.',
+    discoverable: false,
+    dmKey: null,
+    createdBy: user._id,
+    createdAt: now,
+    updatedAt: now,
+    lastMessageAt: null,
+  };
+  await collections.chatSpaces().insertOne(space);
+  await chatService.addMembers(
+    space,
+    team.map((t) => t._id),
+    'manager',
+  );
+  await chatService.addMembers(space, [user._id], 'member');
+  await chatService.announceSpaces(await chatService.memberIds(space._id));
   return user;
 }
 
@@ -249,7 +311,7 @@ const codeHashOf = (email: string, code: string) => hashToken(`${email}:${code}`
  * of the teammate who invited them.
  */
 async function emailFromMuvance(
-  guest: ChatUserDoc,
+  guest: Pick<ChatUserDoc, 'email' | 'invitedBy'>,
   content: Parameters<typeof chatEmail>[0] & { subject: string },
 ) {
   const message = { to: guest.email, subject: content.subject, ...chatEmail(content) };
@@ -273,11 +335,13 @@ chatRouter.get('/sign-in-options', (_req, res) => {
 chatRouter.post(
   '/login/email',
   loginLimiter,
+  codeSendLimiter,
   codeLimiter,
   validateBody(chatEmailCodeSchema),
   async (req, res) => {
     const { email } = req.body as { email: string };
-    const user = await clientByEmail(email);
+    // Someone new gets their account once they enter the code.
+    const user = (await clientByEmail(email)) ?? { email, invitedBy: null };
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     const now = new Date();
     await collections.chatCodes().deleteMany({ email });
@@ -327,7 +391,7 @@ chatRouter.post(
       throw HttpError.badRequest("That code isn't right. Check the latest email and try again.");
     }
     await collections.chatCodes().deleteMany({ email });
-    const user = await clientByEmail(email);
+    const user = (await clientByEmail(email)) ?? (await newClient(email, null));
     res.json(meDto(await signInClient(user, res)));
   },
 );
@@ -342,10 +406,14 @@ chatRouter.post('/login/google', loginLimiter, validateBody(chatGoogleSchema), a
   if (!identity) {
     throw HttpError.unauthorized("Google sign-in didn't work. Try again, or continue with email.");
   }
-  const user = await clientByEmail(identity.email);
+  const existing = await clientByEmail(identity.email);
+  if (!existing) {
+    const user = await newClient(identity.email, identity.name);
+    return void res.json(meDto(await signInClient(user, res)));
+  }
   // Their first time: the name on their Google account beats the one the team typed.
-  const name = user.status === 'invited' ? identity.name : null;
-  res.json(meDto(await signInClient(user, res, name)));
+  const name = existing.status === 'invited' ? identity.name : null;
+  res.json(meDto(await signInClient(existing, res, name)));
 });
 
 /** Signs a client out. (Teammates sign out of their Muvance account: /api/auth/logout.) */

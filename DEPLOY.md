@@ -176,7 +176,8 @@ the team and clients: spaces (group conversations), direct messages, threads, re
 
 - **Clients (guests)** never have a password. The sign-in page is for them first: **Continue with
   Google**, or their email and a 6-digit code emailed to them (the email also has a one-click
-  link). Only invited addresses can sign in. They're invited by email from a space's members list;
+  link). Anyone can sign in: someone nobody invited gets a conversation of their own with the
+  whole team. They're invited by email from a space's members list;
   the invite comes from the teammate's own address and its link signs them straight in. Guests only
   see the spaces they're in, and the people in them. Teammates manage guests in Settings → Guests
   (send a sign-in link another way, remove access).

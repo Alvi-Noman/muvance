@@ -10,7 +10,7 @@ import { LogoMark, Spinner } from '@/components/ui';
 
 /**
  * Signing in to Muvance Chat. Clients (the default) never need a password: Continue with Google,
- * or a 6-digit code by email. The team uses their Muvance account, one step away.
+ * or a 6-digit code by email. Anyone can come in; someone new gets a conversation with the team. The team uses their Muvance account, one step away.
  */
 
 /** The dark brand panel beside sign-in forms. */
@@ -282,7 +282,9 @@ function ClientStart({
   return (
     <>
       <h2 className="text-2xl font-semibold tracking-tight">Sign in to Muvance Chat</h2>
-      <p className="mt-1.5 text-sm text-muted">Use the email address Muvance invited.</p>
+      <p className="mt-1.5 text-sm text-muted">
+        New here or already working with us, it takes a few seconds.
+      </p>
 
       {googleClientId && (
         <>

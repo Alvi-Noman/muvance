@@ -23,6 +23,11 @@ vi.mock('@/modules/chat/mailer', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/modules/chat/mailer')>();
   return {
     ...real,
+    systemMailer: {
+      send: vi.fn(async (m: { to: string; subject: string; text: string }) => {
+        sent.push({ from: 'no-reply@muvance.com', to: m.to, subject: m.subject, text: m.text });
+      }),
+    },
     chatMailer: {
       send: vi.fn(
         async (from: { email: string }, m: { to: string; subject: string; text: string }) => {
@@ -257,12 +262,47 @@ describe('Spaces and messages', () => {
 });
 
 describe('Clients signing in', () => {
-  it('only sends codes to invited clients, and points the team to their own sign-in', async () => {
-    const stranger = await request(app)
+  it('lets anyone in by email: someone new gets a conversation with the whole team', async () => {
+    const pat = await teammate('pat');
+    // Without the relay, there's no way to email someone nobody invited.
+    const noRelay = await request(app)
       .post('/api/chat/login/email')
-      .send({ email: 'nobody@example.com' });
-    expect(stranger.status).toBe(404);
-    expect(stranger.body.error.message).toContain('invitation');
+      .send({ email: 'new.lead@shop.com' });
+    expect(noRelay.status).toBe(503);
+
+    env.RELAY_USER = 'relay';
+    env.RELAY_PASSWORD = 'relay';
+    try {
+      const lead = request.agent(app);
+      expect(
+        (await lead.post('/api/chat/login/email').send({ email: 'new.lead@shop.com' })).status,
+      ).toBe(204);
+      expect(sent.at(-1)).toMatchObject({ from: 'no-reply@muvance.com', to: 'new.lead@shop.com' });
+      // No account until they enter the code.
+      expect(await collections.chatUsers().findOne({ email: 'new.lead@shop.com' })).toBeNull();
+      const ok = await lead
+        .post('/api/chat/login/code')
+        .send({ email: 'new.lead@shop.com', code: lastCode('new.lead@shop.com') });
+      expect(ok.status).toBe(200);
+      expect(ok.body).toMatchObject({ kind: 'guest', name: 'new.lead', canManage: false });
+
+      const data = await bootstrap(lead);
+      expect(data.spaces).toHaveLength(1);
+      const space = data.spaces[0]!;
+      expect(space.description).toContain('Muvance team will reply here');
+      // The whole team is in it (and sees it), so they're notified when the client writes.
+      expect(space.members.map((m) => m.userId)).toContain(pat.id);
+      expect((await bootstrap(pat.agent)).spaces.map((s) => s.id)).toContain(space.id);
+      expect(
+        (await lead.post(`/api/chat/spaces/${space.id}/messages`).send({ text: 'Hi!' })).status,
+      ).toBe(201);
+      // Still a client: no browsing or creating spaces.
+      expect((await lead.get('/api/chat/spaces/browse')).status).toBe(403);
+    } finally {
+      env.RELAY_USER = undefined;
+      env.RELAY_PASSWORD = undefined;
+    }
+
     const team = await request(app).post('/api/chat/login/email').send({ email: 'x@muvance.com' });
     expect(team.status).toBe(400);
     expect(team.body.error.message).toContain('team');
@@ -311,11 +351,21 @@ describe('Clients signing in', () => {
         .send({ credential: 'x'.repeat(40) });
       expect(bad.status).toBe(401);
 
+      // Someone nobody invited comes straight in, with their own conversation with the team.
       verify.mockResolvedValueOnce({ email: 'someone@gmail.com', name: 'Some One' });
-      const notInvited = await request(app)
+      const stranger = request.agent(app);
+      const newcomer = await stranger
         .post('/api/chat/login/google')
         .send({ credential: 'x'.repeat(40) });
-      expect(notInvited.status).toBe(404);
+      expect(newcomer.status).toBe(200);
+      expect(newcomer.body).toMatchObject({ kind: 'guest', name: 'Some One' });
+      expect((await bootstrap(stranger)).spaces.map((s) => s.name)).toEqual(['Some One']);
+      // Signing in again doesn't make another.
+      verify.mockResolvedValueOnce({ email: 'someone@gmail.com', name: 'Some One' });
+      await request(app)
+        .post('/api/chat/login/google')
+        .send({ credential: 'x'.repeat(40) });
+      expect((await bootstrap(stranger)).spaces).toHaveLength(1);
 
       verify.mockResolvedValueOnce({ email: 'ceo@zed.com', name: 'Zara Ed' });
       const client = request.agent(app);

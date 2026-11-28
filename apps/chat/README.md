@@ -31,7 +31,8 @@ Team and client conversations at `https://chat.muvance.com`, in the style of Goo
   People page.
 - **Clients (guests)** come first on the sign-in page and never need a password: **Continue with
   Google**, or their email and a 6-digit code we email them (or the link in that email). Their
-  invite link signs them straight in. Only invited emails can sign in, and they see only the spaces
+  invite link signs them straight in. **Anyone** can sign in: someone new gets a conversation of
+  their own with the whole team (everyone is notified when they write). Clients see only the spaces
   they're in. Teammates can send a sign-in link another way, or remove access, in Settings → Guests.
 
 ## Where things are kept

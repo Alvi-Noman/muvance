@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BellOff,
   LogOut,
@@ -44,6 +44,16 @@ export function ChatApp() {
     pushKey,
     useCallback((url: string) => navigate(url), [navigate]),
   );
+
+  // A client with one conversation (a new one, with the team) goes straight into it, once.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    if (me.kind === 'guest' && !spaceId && !savedPage && spaces.length === 1) {
+      navigate(`/c/${spaces[0]!.id}`, { replace: true });
+    }
+  }, [me.kind, spaceId, savedPage, spaces, navigate]);
 
   // Opened from "Share to Muvance Chat" on the phone.
   useEffect(() => {
