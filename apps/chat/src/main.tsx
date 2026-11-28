@@ -31,8 +31,8 @@ function Root() {
       // Only when a sign-in ends: a visitor who isn't signed in already sees the sign-in page
       // (resetting then would ask again, get another 401, and never stop).
       if (!qc.getQueryData(keys.bootstrap)) return;
-      qc.clear();
-      void qc.resetQueries({ queryKey: keys.bootstrap });
+      // Signed out elsewhere (another app, or "sign out everywhere"): start fresh on the sign-in page.
+      window.location.replace('/');
     });
   }, [qc]);
 

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   BellOff,
   LogOut,
@@ -33,7 +32,6 @@ export function ChatApp() {
   const { spaceId } = useParams();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
-  const qc = useQueryClient();
   const navigate = useNavigate();
   const connection = useConnection();
   const [query, setQuery] = useState('');
@@ -73,9 +71,9 @@ export function ChatApp() {
     await stopPushForSignOut();
     // Teammates sign out of their Muvance account; clients out of chat.
     await (me.kind === 'team' ? account.logout() : api.post('/logout')).catch(() => {});
-    qc.clear();
-    navigate('/', { replace: true });
-    await qc.resetQueries();
+    // A fresh page: the chat on screen can't outlive its data (it would crash), and nothing of
+    // this person's stays in memory.
+    window.location.replace('/');
   };
 
   return (
